@@ -10,7 +10,13 @@ app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
 
 // Connect to MongoDB
-mongoose.connect('mongodb+srv://alighouridev:wMSxuw2Dx5EPjInL@cluster0.5gfj4zc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0').then(() => {
+mongoose.connect('mongodb+srv://alighouridev:wMSxuw2Dx5EPjInL@cluster0.5gfj4zc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    ssl: true,
+    sslValidate: true,
+}).then(() => {
     console.log('MongoDB connected');
 })
 // Courses
