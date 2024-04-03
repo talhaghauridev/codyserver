@@ -7,7 +7,7 @@ const crypto = require("crypto");
 
 // Regis
 router.post("/signup", async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, name } = req.body;
 
     try {
         // Check if the email is already in use
@@ -20,6 +20,7 @@ router.post("/signup", async (req, res) => {
         const user = await User.create({
             email,
             password,
+            name
         });
 
         // Implement sendToken function or adjust as needed
@@ -37,7 +38,7 @@ router.post(
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return next(new ErrorHandler("Please Enter Email And Password", 400));
+            return next(new ErrorHandler("Please Enter Name, Email And Password", 400));
         }
 
         const user = await User.findOne({ email }).select("+password");
