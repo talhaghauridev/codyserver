@@ -1,19 +1,19 @@
-const express = require('express');
-const User = require('../models/userModel');
+const express = require("express");
+const User = require("../models/userModel");
 const router = express.Router();
-const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
-const sendToken = require('../utils/sendToken');
-const crypto = require('crypto');
+const asyncErrorHandler = require("../middlewares/asyncErrorHandler");
+const sendToken = require("../utils/sendToken");
+const crypto = require("crypto");
 
 // Regis
-router.post('/signup', async (req, res) => {
+router.post("/signup", async (req, res) => {
     const { email, password } = req.body;
 
     try {
         // Check if the email is already in use
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(400).send({ message: 'Email is already in use' });
+            return res.status(400).send({ message: "Email is already in use" });
         }
 
         // If no user with the email exists, create a new user
@@ -26,52 +26,74 @@ router.post('/signup', async (req, res) => {
         sendToken(user, 201, res);
     } catch (error) {
         // Log the error and send a generic error message
-        console.error('Signup error:', error);
-        res.status(500).send({ message: 'Error signing up user' });
+        console.error("Signup error:", error);
+        res.status(500).send({ message: "Error signing up user" });
     }
 });
 
-router.post('/login', asyncErrorHandler(async (req, res, next) => {
+router.post(
+    "/login",
+    asyncErrorHandler(async (req, res, next) => {
+        const { email, password } = req.body;
 
-    const { email, password } = req.body;
+        if (!email || !password) {
+            return next(new ErrorHandler("Please Enter Email And Password", 400));
+        }
 
-    if (!email || !password) {
-        return next(new ErrorHandler("Please Enter Email And Password", 400));
-    }
+        const user = await User.findOne({ email }).select("+password");
 
-    const user = await User.findOne({ email }).select("+password");
+        if (!user) {
+            return next(new ErrorHandler("Invalid Email or Password", 401));
+        }
 
-    if (!user) {
-        return next(new ErrorHandler("Invalid Email or Password", 401));
-    }
+        const isPasswordMatched = await user.comparePassword(password);
 
-    const isPasswordMatched = await user.comparePassword(password);
+        if (!isPasswordMatched) {
+            return next(new ErrorHandler("Invalid Email or Password", 401));
+        }
 
-    if (!isPasswordMatched) {
-        return next(new ErrorHandler("Invalid Email or Password", 401));
-    }
+        // Generate JWT token first
+        const token = user.getJWTToken();
 
-    // Generate JWT token first
-    const token = user.getJWTToken();
+        // Convert user to JSON object
+        const userObj = user.toObject();
 
+        // Send token and userObj
+        res.status(201).json({
+            success: true,
+            token,
+            user: userObj,
+        });
+    })
+);
 
+router.get(
+    "/user/:userId/enrolled-courses",
+    asyncErrorHandler(async (req, res) => {
+        const { userId } = req.params;
 
-    // Convert user to JSON object
-    const userObj = user.toObject();
+        try {
+            const userWithCourses = await User.findById(userId).populate({
+                path: "enrolledCourses.courseId",
+                select: "title duration logo", // Assuming you want to fetch title and description of each course
+            });
 
+            if (!userWithCourses) {
+                return res.status(404).send({ message: "User not found" });
+            }
 
-    // Send token and userObj
-    res.status(201).json({
-        success: true,
-        token,
-        user: userObj,
-    });
-}));
-
-
-
-
-
+            // Extract enrolledCourses and send them in the response
+            const { enrolledCourses } = userWithCourses;
+            res.status(200).json({
+                success: true,
+                enrolledCourses,
+            });
+        } catch (error) {
+            console.error("Error fetching enrolled courses:", error);
+            res.status(500).send({ message: "Error fetching enrolled courses" });
+        }
+    })
+);
 
 // // Logout User
 // exports.logoutUser = asyncErrorHandler(async (req, res, next) => {

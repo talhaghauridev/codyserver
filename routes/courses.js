@@ -61,7 +61,7 @@ router.delete('/courses/:id', async (req, res) => {
     }
 });
 
-// Lessons
+
 router.post('/courses/:courseId/lessons', async (req, res) => {
     const lesson = new Lesson({
         ...req.body,
@@ -134,25 +134,62 @@ router.get('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
     }
 });
 
+// router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
+//     const { courseId, topicId } = req.params;
+//     const lesson = new Lesson({
+//         ...req.body,
+//     });
+//     try {
+//         const savedLesson = await lesson.save();
+//         const course = await Course.findById(courseId);
+//         // Find the topic by topicId and push the lesson ID
+//         const topic = course.topics.id(topicId); // Accessing the specific topic by ID
+//         if (!topic) {
+//             return res.status(404).send({ error: 'Topic not found' });
+//         }
+//         topic.lessons.push(savedLesson._id); // Assumes `lessons` is a field in the topic schema
+//         await course.save();
+
+//         res.status(201).send(savedLesson);
+//     } catch (error) {
+//         res.status(400).send(error);
+//     }
+// });
 router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
     const { courseId, topicId } = req.params;
-    const lesson = new Lesson({
-        ...req.body,
-    });
+    const { duration } = req.body; // Assuming duration is sent in the request body
+
     try {
-        const savedLesson = await lesson.save();
+        const savedLesson = await new Lesson({
+            ...req.body,
+            courseId, // Assuming your lesson schema requires a courseId
+        }).save();
+
         const course = await Course.findById(courseId);
-        // Find the topic by topicId and push the lesson ID
-        const topic = course.topics.id(topicId); // Accessing the specific topic by ID
+        if (!course) {
+            return res.status(404).send({ error: 'Course not found' });
+        }
+
+        // Accessing the specific topic by ID
+        const topic = course.topics.id(topicId);
         if (!topic) {
             return res.status(404).send({ error: 'Topic not found' });
         }
-        topic.lessons.push(savedLesson._id); // Assumes `lessons` is a field in the topic schema
+
+        // Push the new lesson ID into the topic's lessons array
+        topic.lessons.push(savedLesson._id);
+
+        // Update lesson count and total duration at the course level
+        // This assumes you have lessonCount and totalDuration fields in your course model
+        course.lessonCount = (course.lessonCount || 0) + 1;
+        course.totalDuration = (course.totalDuration || 0) + (duration || 0);
+
         await course.save();
 
         res.status(201).send(savedLesson);
     } catch (error) {
-        res.status(400).send(error);
+        console.error(error);
+        res.status(500).send(error);
     }
 });
 
@@ -178,14 +215,29 @@ router.delete('/courses/:courseId/topics/:topicId', async (req, res) => {
 
 
 router.post('/enroll', async (req, res) => {
-    // Assuming req.user is populated from JWT middleware
     const { courseId } = req.body;
+    const userId = req.body.id; // Assuming this is the user's ID from the request
+
     try {
-        await User.findByIdAndUpdate(req.user.id, {
+        // Find the user with the specific courseId already in their enrolledCourses
+        const userAlreadyEnrolled = await User.findOne({
+            _id: userId,
+            'enrolledCourses.courseId': courseId
+        });
+
+        // If the user is already enrolled in the course, send an error message
+        if (userAlreadyEnrolled) {
+            return res.status(400).send({ message: 'Already enrolled in this course' });
+        }
+
+        // If not already enrolled, update the user to add the course to their enrolledCourses
+        await User.findByIdAndUpdate(userId, {
             $push: { enrolledCourses: { courseId, progress: 0 } }
         });
+
         res.status(200).send({ message: 'Enrolled successfully' });
     } catch (error) {
+        console.error(error); // It's helpful to log the error for debugging purposes
         res.status(500).send(error);
     }
 });
@@ -195,40 +247,88 @@ router.post('/completeLesson', async (req, res) => {
     const { userId, courseId, lessonId } = req.body;
 
     try {
+        // Find the user and course from the database
         const user = await User.findById(userId);
-        const course = await Course.findById(courseId); // Assuming you have a Course model
+        if (!user) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+
+        const course = await Course.findById(courseId);
         if (!course) {
             return res.status(404).send({ message: 'Course not found' });
         }
 
+        // Calculate the total number of lessons in the course
         const totalLessons = course.topics.reduce((acc, topic) => acc + topic.lessons.length, 0);
 
-        const courseIndex = user.enrolledCourses.findIndex(enrollment => enrollment.courseId.equals(courseId));
-
-        if (courseIndex !== -1) {
-            const lessonsCompleted = user.enrolledCourses[courseIndex].lessonsCompleted;
-            const lessonIndex = lessonsCompleted.findIndex(lesson => lesson.lessonId.equals(lessonId));
-
-            if (lessonIndex === -1) {
-                lessonsCompleted.push({ lessonId, completed: true });
-            } else {
-                lessonsCompleted[lessonIndex].completed = true;
-            }
-
-            // Calculate and update course progress
-            const completedLessonsCount = lessonsCompleted.filter(lesson => lesson.completed).length;
-            const progress = (completedLessonsCount / totalLessons) * 100;
-            user.enrolledCourses[courseIndex].progress = progress;
-
-            await user.save();
-            res.status(200).send({ message: 'Lesson marked as completed, progress updated' });
-        } else {
-            res.status(404).send({ message: 'Course not found in user enrollments' });
+        // Find the enrollment info for the specified course
+        const enrollment = user.enrolledCourses.find(enrollment => enrollment.courseId.equals(courseId));
+        if (!enrollment) {
+            return res.status(404).send({ message: 'User is not enrolled in the specified course' });
         }
+
+        // Check if the lesson has already been completed
+        if (enrollment.lessonsCompleted.some(lesson => lesson.lessonId.equals(lessonId))) {
+            return res.status(400).send({ message: 'Lesson already completed' });
+        }
+
+        // Mark the lesson as completed
+        enrollment.lessonsCompleted.push({ lessonId, completed: true });
+
+        // Calculate and update the user's progress for the course
+        const progress = (enrollment.lessonsCompleted.length / totalLessons) * 100;
+        enrollment.progress = progress;
+
+        // Save the updated user document
+        await user.save();
+
+        res.status(200).send({
+            message: 'Lesson marked as completed, progress updated',
+            progress: progress
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).send(error);
+        console.error(error); // It's helpful to log the error for debugging purposes
+        res.status(500).send({ message: 'An error occurred', error: error.toString() });
     }
 });
+// router.post('/completeLesson', async (req, res) => {
+//     const { userId, courseId, lessonId } = req.body;
+
+//     try {
+//         const user = await User.findById(userId);
+//         const course = await Course.findById(courseId); // Assuming you have a Course model
+//         if (!course) {
+//             return res.status(404).send({ message: 'Course not found' });
+//         }
+
+//         const totalLessons = course.topics.reduce((acc, topic) => acc + topic.lessons.length, 0);
+
+//         const courseIndex = user.enrolledCourses.findIndex(enrollment => enrollment.courseId.equals(courseId));
+
+//         if (courseIndex !== -1) {
+//             const lessonsCompleted = user.enrolledCourses[courseIndex].lessonsCompleted;
+//             const lessonIndex = lessonsCompleted.findIndex(lesson => lesson.lessonId.equals(lessonId));
+
+//             if (lessonIndex === -1) {
+//                 lessonsCompleted.push({ lessonId, completed: true });
+//             } else {
+//                 lessonsCompleted[lessonIndex].completed = true;
+//             }
+
+//             // Calculate and update course progress
+//             const completedLessonsCount = lessonsCompleted.filter(lesson => lesson.completed).length;
+//             const progress = (completedLessonsCount / totalLessons) * 100;
+//             user.enrolledCourses[courseIndex].progress = progress;
+
+//             await user.save();
+//             res.status(200).send({ message: 'Lesson marked as completed, progress updated' });
+//         } else {
+//             res.status(404).send({ message: 'Course not found in user enrollments' });
+//         }
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).send(error);
+//     }
+// });
 
 module.exports = router;

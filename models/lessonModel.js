@@ -19,7 +19,10 @@ const lessonSchema = new mongoose.Schema({
         required: true
     },
     title: String,
-    duration: String,
+    duration: {
+        type: Number,
+        default: 0,
+    },
     content: [contentBlockSchema]
 });
 
