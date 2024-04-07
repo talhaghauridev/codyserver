@@ -181,8 +181,8 @@ router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
 
         // Update lesson count and total duration at the course level
         // This assumes you have lessonCount and totalDuration fields in your course model
-        course.lessonCount = (course.lessonCount || 0) + 1;
-        course.totalDuration = (course.totalDuration || 0) + (duration || 0);
+        course.lessons = (course.lessons || 0) + 1;
+        course.duration = (course.duration || 0) + (duration || 0);
 
         await course.save();
 

@@ -3,7 +3,10 @@ const mongoose = require("mongoose");
 const topicSchema = new mongoose.Schema({
     title: String,
     description: String,
-    duration: Number,
+    duration: {
+        type: Number,
+        default: 0,
+    },
     lessons: [
         {
             type: mongoose.Schema.Types.ObjectId,
