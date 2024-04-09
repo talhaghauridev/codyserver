@@ -4,6 +4,8 @@ const router = express.Router();
 const asyncErrorHandler = require("../middlewares/asyncErrorHandler");
 const sendToken = require("../utils/sendToken");
 const crypto = require("crypto");
+const Course = require("../models/courseModel");
+const Lesson = require("../models/lessonModel");
 
 // Regis
 router.post("/signup", async (req, res) => {
@@ -93,6 +95,66 @@ router.get(
             console.error("Error fetching enrolled courses:", error);
             res.status(500).send({ message: "Error fetching enrolled courses" });
         }
+    })
+);
+router.get('/mycourses/:userId', async (req, res) => {
+    try {
+        // Find the user by ID and populate the enrolledCourses with course and lesson details
+        const user = await User.findById(req.params.userId)
+            .populate({
+                path: 'enrolledCourses.courseId',
+                model: 'Course',
+                populate: {
+                    path: 'topics.lessons',
+                    model: 'Lesson'
+                }
+            });
+
+        // Check if the user exists
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Map through the enrolledCourses to add lesson completion details
+        const coursesWithLessonDetails = user.enrolledCourses.map(enrolledCourse => {
+            const course = enrolledCourse.courseId.toObject(); // Convert the course document to a plain object
+            course.topics = course.topics.map(topic => {
+                topic.lessons = topic.lessons.map(lesson => {
+                    const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
+                    lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+                    return lesson;
+                });
+                return topic;
+            });
+            return course;
+        });
+
+        // Respond with the courses and lesson completion details
+        res.json(coursesWithLessonDetails);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get user details
+router.get(
+    '/user/:id',
+    asyncErrorHandler(async (req, res, next) => {
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return next(new ErrorHandler('User not found', 404));
+        }
+
+        // Exclude the password from the response
+        const userObj = user.toObject();
+        delete userObj.password;
+
+        res.status(200).json({
+            success: true,
+            user: userObj
+        });
     })
 );
 
