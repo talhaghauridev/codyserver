@@ -99,34 +99,40 @@ router.get(
         }
     })
 );
-router.get('/mycourses/:userId', async (req, res) => {
+router.get("/mycourses/:userId", async (req, res) => {
     try {
         // Find the user by ID
         const user = await User.findById(req.params.userId);
 
         // Check if the user exists
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: "User not found" });
         }
 
         // Get all courses
-        const allCourses = await Course.find().populate('topics.lessons');
+        const allCourses = await Course.find().populate("topics.lessons");
 
         // Map through all courses to add enrollment, lesson completion details, and progress
-        const coursesWithDetails = allCourses.map(course => {
+        const coursesWithDetails = allCourses.map((course) => {
             const courseObject = course.toObject(); // Convert the course document to a plain object
 
             // Check if the user is enrolled in this course
-            const enrolledCourse = user.enrolledCourses.find(ec => ec.courseId.equals(course._id));
+            const enrolledCourse = user.enrolledCourses.find((ec) =>
+                ec.courseId.equals(course._id)
+            );
 
             if (enrolledCourse) {
                 // User is enrolled, add lesson completion details and progress
                 courseObject.enrolled = true;
                 courseObject.progress = enrolledCourse.progress; // Add overall course progress
-                courseObject.topics = courseObject.topics.map(topic => {
-                    topic.lessons = topic.lessons.map(lesson => {
-                        const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
-                        lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+                courseObject.topics = courseObject.topics.map((topic) => {
+                    topic.lessons = topic.lessons.map((lesson) => {
+                        const lessonCompletion = enrolledCourse.lessonsCompleted.find(
+                            (lc) => lc.lessonId.equals(lesson._id)
+                        );
+                        lesson.completed = lessonCompletion
+                            ? lessonCompletion.completed
+                            : false;
                         lesson.progress = lessonCompletion ? lessonCompletion.progress : 0; // Add lesson progress
                         return lesson;
                     });
@@ -145,10 +151,9 @@ router.get('/mycourses/:userId', async (req, res) => {
         res.json(coursesWithDetails);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: "Server error" });
     }
 });
-
 
 // Get user details
 router.get(

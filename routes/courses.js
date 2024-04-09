@@ -1,21 +1,22 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Course = require('../models/courseModel');
-const Lesson = require('../models/lessonModel');
-const User = require('../models/userModel');
+const Course = require("../models/courseModel");
+const Lesson = require("../models/lessonModel");
+const User = require("../models/userModel");
 
-
-router.get('/courses', async (req, res) => {
+router.get("/courses", async (req, res) => {
     try {
-        const courses = await Course.find().populate('lessons');
+        const courses = await Course.find().populate("lessons");
         res.status(200).send(courses);
     } catch (error) {
         res.status(500).send(error);
     }
 });
-router.get('/courses/:id', async (req, res) => {
+router.get("/courses/:id", async (req, res) => {
     try {
-        const course = await Course.findById(req.params.id).populate('topics.lessons');
+        const course = await Course.findById(req.params.id).populate(
+            "topics.lessons"
+        );
         if (!course) {
             return res.status(404).send();
         }
@@ -24,9 +25,59 @@ router.get('/courses/:id', async (req, res) => {
         res.status(500).send(error);
     }
 });
+router.get('/course/:userId/:courseId', async (req, res) => {
+    try {
+        // Find the user by ID
+        const user = await User.findById(req.params.userId);
+
+        // Check if the user exists
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Find the course by ID and populate the lessons
+        const course = await Course.findById(req.params.courseId).populate('topics.lessons');
+
+        // Check if the course exists
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        // Convert the course document to a plain object
+        const courseObject = course.toObject();
+
+        // Check if the user is enrolled in this course
+        const enrolledCourse = user.enrolledCourses.find(ec => ec.courseId.equals(course._id));
+
+        if (enrolledCourse) {
+            // User is enrolled, add lesson completion details and progress
+            courseObject.enrolled = true;
+            courseObject.progress = enrolledCourse.progress; // Add overall course progress
+            courseObject.topics = courseObject.topics.map(topic => {
+                topic.lessons = topic.lessons.map(lesson => {
+                    const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
+                    lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+                    lesson.progress = lessonCompletion ? lessonCompletion.progress : 0; // Add lesson progress
+                    return lesson;
+                });
+                return topic;
+            });
+        } else {
+            // User is not enrolled
+            courseObject.enrolled = false;
+            courseObject.progress = 0; // No progress for non-enrolled courses
+        }
+
+        // Respond with the course and details
+        res.json(courseObject);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 
-router.get('/courses/:courseId/topics', async (req, res) => {
+router.get("/courses/:courseId/topics", async (req, res) => {
     try {
         const course = await Course.findById(req.params.courseId);
         if (!course) {
@@ -38,7 +89,7 @@ router.get('/courses/:courseId/topics', async (req, res) => {
     }
 });
 
-router.post('/courses', async (req, res) => {
+router.post("/courses", async (req, res) => {
     const course = new Course(req.body);
     try {
         await course.save();
@@ -49,7 +100,7 @@ router.post('/courses', async (req, res) => {
 });
 
 // Delete a course
-router.delete('/courses/:id', async (req, res) => {
+router.delete("/courses/:id", async (req, res) => {
     try {
         const course = await Course.findByIdAndDelete(req.params.id);
         if (!course) {
@@ -61,24 +112,24 @@ router.delete('/courses/:id', async (req, res) => {
     }
 });
 
-
-router.post('/courses/:courseId/lessons', async (req, res) => {
+router.post("/courses/:courseId/lessons", async (req, res) => {
     const lesson = new Lesson({
         ...req.body,
         courseId: req.params.courseId,
     });
     try {
         const savedLesson = await lesson.save();
-        await Course.findByIdAndUpdate(req.params.courseId, { $push: { lessons: savedLesson._id } });
+        await Course.findByIdAndUpdate(req.params.courseId, {
+            $push: { lessons: savedLesson._id },
+        });
         res.status(201).send(savedLesson);
     } catch (error) {
         res.status(400).send(error);
     }
 });
 
-
 // Delete a lesson
-router.delete('/lessons/:id', async (req, res) => {
+router.delete("/lessons/:id", async (req, res) => {
     try {
         const lesson = await Lesson.findByIdAndDelete(req.params.id);
         if (!lesson) {
@@ -92,7 +143,7 @@ router.delete('/lessons/:id', async (req, res) => {
 
 // Course Sections (Topics)
 // Add a topic to a course
-router.post('/courses/:id/topics', async (req, res) => {
+router.post("/courses/:id/topics", async (req, res) => {
     try {
         const course = await Course.findById(req.params.id);
         if (!course) {
@@ -105,32 +156,32 @@ router.post('/courses/:id/topics', async (req, res) => {
         res.status(400).send(error);
     }
 });
-router.get('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
+router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
     const { courseId, topicId } = req.params;
 
     try {
         const course = await Course.findById(courseId);
         // Ensure the course exists
         if (!course) {
-            return res.status(404).send({ error: 'Course not found' });
+            return res.status(404).send({ error: "Course not found" });
         }
 
         // Find the specific topic by ID within the course
         const topic = course.topics.id(topicId);
         if (!topic) {
-            return res.status(404).send({ error: 'Topic not found' });
+            return res.status(404).send({ error: "Topic not found" });
         }
         console.log(topic);
         // Assuming topic.lessons is an array of lesson IDs
         // Use the $in operator to find lessons whose IDs are listed in topic.lessons
         const lessons = await Lesson.find({
-            '_id': { $in: topic.lessons }
+            _id: { $in: topic.lessons },
         });
 
         res.status(200).send(lessons);
     } catch (error) {
         console.log(error);
-        res.status(500).send({ error: 'Server error' });
+        res.status(500).send({ error: "Server error" });
     }
 });
 
@@ -155,7 +206,7 @@ router.get('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
 //         res.status(400).send(error);
 //     }
 // });
-router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
+router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
     const { courseId, topicId } = req.params;
     const { duration } = req.body; // Assuming duration is sent in the request body
 
@@ -167,13 +218,13 @@ router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
 
         const course = await Course.findById(courseId);
         if (!course) {
-            return res.status(404).send({ error: 'Course not found' });
+            return res.status(404).send({ error: "Course not found" });
         }
 
         // Accessing the specific topic by ID
         const topic = course.topics.id(topicId);
         if (!topic) {
-            return res.status(404).send({ error: 'Topic not found' });
+            return res.status(404).send({ error: "Topic not found" });
         }
 
         // Push the new lesson ID into the topic's lessons array
@@ -194,7 +245,7 @@ router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
 });
 
 // Delete a topic from a course
-router.delete('/courses/:courseId/topics/:topicId', async (req, res) => {
+router.delete("/courses/:courseId/topics/:topicId", async (req, res) => {
     try {
         const course = await Course.findById(req.params.courseId);
         if (!course) {
@@ -212,9 +263,7 @@ router.delete('/courses/:courseId/topics/:topicId', async (req, res) => {
     }
 });
 
-
-
-router.post('/enroll', async (req, res) => {
+router.post("/enroll", async (req, res) => {
     const { courseId } = req.body;
     const userId = req.body.id; // Assuming this is the user's ID from the request
 
@@ -222,54 +271,66 @@ router.post('/enroll', async (req, res) => {
         // Find the user with the specific courseId already in their enrolledCourses
         const userAlreadyEnrolled = await User.findOne({
             _id: userId,
-            'enrolledCourses.courseId': courseId
+            "enrolledCourses.courseId": courseId,
         });
 
         // If the user is already enrolled in the course, send an error message
         if (userAlreadyEnrolled) {
-            return res.status(400).send({ message: 'Already enrolled in this course' });
+            return res
+                .status(400)
+                .send({ message: "Already enrolled in this course" });
         }
 
         // If not already enrolled, update the user to add the course to their enrolledCourses
         await User.findByIdAndUpdate(userId, {
-            $push: { enrolledCourses: { courseId, progress: 0 } }
+            $push: { enrolledCourses: { courseId, progress: 0 } },
         });
 
-        res.status(200).send({ message: 'Enrolled successfully' });
+        res.status(200).send({ message: "Enrolled successfully" });
     } catch (error) {
         console.error(error); // It's helpful to log the error for debugging purposes
         res.status(500).send(error);
     }
 });
 
-
-router.post('/completeLesson', async (req, res) => {
+router.post("/completeLesson", async (req, res) => {
     const { userId, courseId, lessonId } = req.body;
 
     try {
         // Find the user and course from the database
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).send({ message: 'User not found' });
+            return res.status(404).send({ message: "User not found" });
         }
 
         const course = await Course.findById(courseId);
         if (!course) {
-            return res.status(404).send({ message: 'Course not found' });
+            return res.status(404).send({ message: "Course not found" });
         }
 
         // Calculate the total number of lessons in the course
-        const totalLessons = course.topics.reduce((acc, topic) => acc + topic.lessons.length, 0);
+        const totalLessons = course.topics.reduce(
+            (acc, topic) => acc + topic.lessons.length,
+            0
+        );
 
         // Find the enrollment info for the specified course
-        const enrollment = user.enrolledCourses.find(enrollment => enrollment.courseId.equals(courseId));
+        const enrollment = user.enrolledCourses.find((enrollment) =>
+            enrollment.courseId.equals(courseId)
+        );
         if (!enrollment) {
-            return res.status(404).send({ message: 'User is not enrolled in the specified course' });
+            return res
+                .status(404)
+                .send({ message: "User is not enrolled in the specified course" });
         }
 
         // Check if the lesson has already been completed
-        if (enrollment.lessonsCompleted.some(lesson => lesson.lessonId.equals(lessonId))) {
-            return res.status(400).send({ message: 'Lesson already completed' });
+        if (
+            enrollment.lessonsCompleted.some((lesson) =>
+                lesson.lessonId.equals(lessonId)
+            )
+        ) {
+            return res.status(400).send({ message: "Lesson already completed" });
         }
 
         // Mark the lesson as completed
@@ -283,12 +344,14 @@ router.post('/completeLesson', async (req, res) => {
         await user.save();
 
         res.status(200).send({
-            message: 'Lesson marked as completed, progress updated',
-            progress: progress
+            message: "Lesson marked as completed, progress updated",
+            progress: progress,
         });
     } catch (error) {
         console.error(error); // It's helpful to log the error for debugging purposes
-        res.status(500).send({ message: 'An error occurred', error: error.toString() });
+        res
+            .status(500)
+            .send({ message: "An error occurred", error: error.toString() });
     }
 });
 // router.post('/completeLesson', async (req, res) => {
