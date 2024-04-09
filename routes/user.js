@@ -22,7 +22,7 @@ router.post("/signup", async (req, res) => {
         const user = await User.create({
             email,
             password,
-            name
+            name,
         });
 
         // Implement sendToken function or adjust as needed
@@ -40,7 +40,9 @@ router.post(
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return next(new ErrorHandler("Please Enter Name, Email And Password", 400));
+            return next(
+                new ErrorHandler("Please Enter Name, Email And Password", 400)
+            );
         }
 
         const user = await User.findOne({ email }).select("+password");
@@ -110,7 +112,7 @@ router.get('/mycourses/:userId', async (req, res) => {
         // Get all courses
         const allCourses = await Course.find().populate('topics.lessons');
 
-        // Map through all courses to add enrollment and lesson completion details
+        // Map through all courses to add enrollment, lesson completion details, and progress
         const coursesWithDetails = allCourses.map(course => {
             const courseObject = course.toObject(); // Convert the course document to a plain object
 
@@ -118,12 +120,14 @@ router.get('/mycourses/:userId', async (req, res) => {
             const enrolledCourse = user.enrolledCourses.find(ec => ec.courseId.equals(course._id));
 
             if (enrolledCourse) {
-                // User is enrolled, add lesson completion details
+                // User is enrolled, add lesson completion details and progress
                 courseObject.enrolled = true;
+                courseObject.progress = enrolledCourse.progress; // Add overall course progress
                 courseObject.topics = courseObject.topics.map(topic => {
                     topic.lessons = topic.lessons.map(lesson => {
                         const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
                         lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+                        lesson.progress = lessonCompletion ? lessonCompletion.progress : 0; // Add lesson progress
                         return lesson;
                     });
                     return topic;
@@ -131,6 +135,7 @@ router.get('/mycourses/:userId', async (req, res) => {
             } else {
                 // User is not enrolled
                 courseObject.enrolled = false;
+                courseObject.progress = 0; // No progress for non-enrolled courses
             }
 
             return courseObject;
@@ -147,12 +152,12 @@ router.get('/mycourses/:userId', async (req, res) => {
 
 // Get user details
 router.get(
-    '/user/:id',
+    "/user/:id",
     asyncErrorHandler(async (req, res, next) => {
         const user = await User.findById(req.params.id);
 
         if (!user) {
-            return next(new ErrorHandler('User not found', 404));
+            return next(new ErrorHandler("User not found", 404));
         }
 
         // Exclude the password from the response
@@ -161,7 +166,7 @@ router.get(
 
         res.status(200).json({
             success: true,
-            user: userObj
+            user: userObj,
         });
     })
 );
