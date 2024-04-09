@@ -78,14 +78,10 @@ router.get('/course/:userId/:courseId', async (req, res) => {
 router.get("/popular-courses", async (req, res) => {
     try {
         const popularCourses = await Course.aggregate([
-            {
-                $addFields: {
-                    studentCount: { $size: "$students" } // Assuming you have a "students" array in your Course model
-                }
-            },
-            { $sort: { studentCount: -1 } }, // Sort by studentCount in descending order
+            { $sort: { enrolledCount: -1 } }, // Sort by enrolledCount in descending order
             { $limit: 5 } // Limit to the top 5 courses
         ]);
+
 
         res.status(200).json(popularCourses);
     } catch (error) {
