@@ -99,43 +99,51 @@ router.get(
 );
 router.get('/mycourses/:userId', async (req, res) => {
     try {
-        // Find the user by ID and populate the enrolledCourses with course and lesson details
-        const user = await User.findById(req.params.userId)
-            .populate({
-                path: 'enrolledCourses.courseId',
-                model: 'Course',
-                populate: {
-                    path: 'topics.lessons',
-                    model: 'Lesson'
-                }
-            });
+        // Find the user by ID
+        const user = await User.findById(req.params.userId);
 
         // Check if the user exists
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Map through the enrolledCourses to add lesson completion details
-        const coursesWithLessonDetails = user.enrolledCourses.map(enrolledCourse => {
-            const course = enrolledCourse.courseId.toObject(); // Convert the course document to a plain object
-            course.topics = course.topics.map(topic => {
-                topic.lessons = topic.lessons.map(lesson => {
-                    const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
-                    lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
-                    return lesson;
+        // Get all courses
+        const allCourses = await Course.find().populate('topics.lessons');
+
+        // Map through all courses to add enrollment and lesson completion details
+        const coursesWithDetails = allCourses.map(course => {
+            const courseObject = course.toObject(); // Convert the course document to a plain object
+
+            // Check if the user is enrolled in this course
+            const enrolledCourse = user.enrolledCourses.find(ec => ec.courseId.equals(course._id));
+
+            if (enrolledCourse) {
+                // User is enrolled, add lesson completion details
+                courseObject.enrolled = true;
+                courseObject.topics = courseObject.topics.map(topic => {
+                    topic.lessons = topic.lessons.map(lesson => {
+                        const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
+                        lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+                        return lesson;
+                    });
+                    return topic;
                 });
-                return topic;
-            });
-            return course;
+            } else {
+                // User is not enrolled
+                courseObject.enrolled = false;
+            }
+
+            return courseObject;
         });
 
-        // Respond with the courses and lesson completion details
-        res.json(coursesWithLessonDetails);
+        // Respond with the courses and details
+        res.json(coursesWithDetails);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
     }
 });
+
 
 // Get user details
 router.get(
