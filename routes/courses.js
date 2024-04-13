@@ -4,6 +4,7 @@ const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const User = require("../models/userModel");
 
+
 router.get("/courses", async (req, res) => {
     try {
         const courses = await Course.find().populate("lessons");
@@ -103,6 +104,7 @@ router.get("/courses/:courseId/topics", async (req, res) => {
 });
 
 router.post("/courses", async (req, res) => {
+
     const course = new Course(req.body);
     try {
         await course.save();
@@ -114,11 +116,15 @@ router.post("/courses", async (req, res) => {
 
 // Delete a course
 router.delete("/courses/:id", async (req, res) => {
+    const {id} = req.params
     try {
         const course = await Course.findByIdAndDelete(req.params.id);
         if (!course) {
             return res.status(404).send();
         }
+        await Lesson.findByIdAndDelete(id)
+
+        
         res.send(course);
     } catch (error) {
         res.status(500).send(error);

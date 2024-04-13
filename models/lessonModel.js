@@ -10,7 +10,7 @@ const contentBlockSchema = new mongoose.Schema({
     item: String,
     language: String,
     code: String
-}, { _id: false });
+});
 
 const lessonSchema = new mongoose.Schema({
     courseId: {
