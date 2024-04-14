@@ -68,24 +68,20 @@ router.put("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
     }
 
    
-
-    // console.log(lesson.content);
-
     const contentIndex = lesson.content.filter((block) => {
-      console.log(block._id.toString() , contentId.toString());
       return block._id.toString() === contentId.toString();
     });
 
     // console.log(lesson.content);
 
     console.log(contentIndex);
-    // const updatedLesson = await Lesson.findByIdAndUpdate(
-    //   id,
-    //   {
-    //     $set: updateData,
-    //   },
-    //   { new: true }
-    // );
+    const updatedLesson = await Lesson.findByIdAndUpdate(
+      id,
+      {
+        $set: updateData,
+      },
+      { new: true }
+    );
     res.status(200).json({
       message: "Content updated successfully",
       contentIndex,
