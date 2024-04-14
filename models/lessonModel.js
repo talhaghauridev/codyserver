@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const contentBlockSchema = new mongoose.Schema({
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
     type: {
         type: String,
         enum: ['heading', 'paragraph', 'list', 'code', 'subHeading', 'subHeadingText', 'headingFlex', 'headingFlexText'],
@@ -9,7 +10,7 @@ const contentBlockSchema = new mongoose.Schema({
     text: String,
     item: String,
     language: String,
-    code: String
+    code: String,
 });
 
 const lessonSchema = new mongoose.Schema({
