@@ -123,7 +123,7 @@ router.post("/courses", async (req, res) => {
 
 // Delete a course
 router.delete("/courses/:id", async (req, res) => {
-    const {id} = req.params
+    const { id } = req.params
     try {
         const course = await Course.findByIdAndDelete(req.params.id);
         if (!course) {
@@ -131,7 +131,7 @@ router.delete("/courses/:id", async (req, res) => {
         }
         await Lesson.findByIdAndDelete(id)
 
-        
+
         res.send(course);
     } catch (error) {
         res.status(500).send(error);
@@ -139,10 +139,19 @@ router.delete("/courses/:id", async (req, res) => {
 });
 
 router.post("/courses/:courseId/lessons", async (req, res) => {
+    const { content, ...lessonData } = req.body;
+
+    const processedContent = content.map(block => ({
+        _id: new mongoose.Types.ObjectId(),
+        ...block
+    }));
+
     const lesson = new Lesson({
-        ...req.body,
+        ...lessonData,
         courseId: req.params.courseId,
+        content: processedContent,
     });
+
     try {
         const savedLesson = await lesson.save();
         await Course.findByIdAndUpdate(req.params.courseId, {
@@ -153,6 +162,7 @@ router.post("/courses/:courseId/lessons", async (req, res) => {
         res.status(400).send(error);
     }
 });
+
 
 // Delete a lesson
 router.delete("/lessons/:id", async (req, res) => {
