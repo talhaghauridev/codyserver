@@ -25,38 +25,46 @@ router.get("/courses/:id", async (req, res) => {
         res.status(500).send(error);
     }
 });
-router.get('/course/:userId/:courseId', async (req, res) => {
+router.get("/course/:userId/:courseId", async (req, res) => {
     try {
         // Find the user by ID
         const user = await User.findById(req.params.userId);
 
         // Check if the user exists
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: "User not found" });
         }
 
         // Find the course by ID and populate the lessons
-        const course = await Course.findById(req.params.courseId).populate('topics.lessons');
+        const course = await Course.findById(req.params.courseId).populate(
+            "topics.lessons"
+        );
 
         // Check if the course exists
         if (!course) {
-            return res.status(404).json({ message: 'Course not found' });
+            return res.status(404).json({ message: "Course not found" });
         }
 
         // Convert the course document to a plain object
         const courseObject = course.toObject();
 
         // Check if the user is enrolled in this course
-        const enrolledCourse = user.enrolledCourses.find(ec => ec.courseId.equals(course._id));
+        const enrolledCourse = user.enrolledCourses.find((ec) =>
+            ec.courseId.equals(course._id)
+        );
 
         if (enrolledCourse) {
             // User is enrolled, add lesson completion details and progress
             courseObject.enrolled = true;
             courseObject.progress = enrolledCourse.progress; // Add overall course progress
-            courseObject.topics = courseObject.topics.map(topic => {
-                topic.lessons = topic.lessons.map(lesson => {
-                    const lessonCompletion = enrolledCourse.lessonsCompleted.find(lc => lc.lessonId.equals(lesson._id));
-                    lesson.completed = lessonCompletion ? lessonCompletion.completed : false;
+            courseObject.topics = courseObject.topics.map((topic) => {
+                topic.lessons = topic.lessons.map((lesson) => {
+                    const lessonCompletion = enrolledCourse.lessonsCompleted.find((lc) =>
+                        lc.lessonId.equals(lesson._id)
+                    );
+                    lesson.completed = lessonCompletion
+                        ? lessonCompletion.completed
+                        : false;
                     lesson.progress = lessonCompletion ? lessonCompletion.progress : 0; // Add lesson progress
                     return lesson;
                 });
@@ -72,16 +80,15 @@ router.get('/course/:userId/:courseId', async (req, res) => {
         res.json(courseObject);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: "Server error" });
     }
 });
 router.get("/popular-courses", async (req, res) => {
     try {
         const popularCourses = await Course.aggregate([
             { $sort: { enrolledCount: -1 } }, // Sort by enrolledCount in descending order
-            { $limit: 5 } // Limit to the top 5 courses
+            { $limit: 5 }, // Limit to the top 5 courses
         ]);
-
 
         res.status(200).json(popularCourses);
     } catch (error) {
