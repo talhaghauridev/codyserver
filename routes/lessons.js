@@ -47,7 +47,7 @@ router.get("/lessons/:id", async (req, res) => {
     res.status(500).send(error);
   }
 });
-router.put("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
+router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
   try {
     const { lessonId, contentId } = req.params;
     const { type, text, title, duration } = req.body;
@@ -56,35 +56,18 @@ router.put("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
       return res.status(404).send();
     }
     console.log(lessonId, contentId);
-    const updateData = {
-      content: {
-        type,
-        text,
-      },
-    };
-    if (title && duration) {
-      updateData.title = title;
-      updateData.duration = duration;
-    }
-
-   
-    const contentIndex = lesson.content.filter((block) => {
+    const contentBlock = lesson.content.find((block) => {
       return block._id.toString() === contentId.toString();
     });
+    console.log(contentBlock);
+    contentBlock.text = text;
+    contentBlock.type = type;
 
-    // console.log(lesson.content);
+    await lesson.save();
 
-    console.log(contentIndex);
-    const updatedLesson = await Lesson.findByIdAndUpdate(
-      id,
-      {
-        $set: updateData,
-      },
-      { new: true }
-    );
+
     res.status(200).json({
       message: "Content updated successfully",
-      contentIndex,
     });
   } catch (error) {
     res.status(500).send(error);

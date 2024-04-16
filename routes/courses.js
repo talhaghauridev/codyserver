@@ -127,15 +127,24 @@ router.delete("/courses/:id", async (req, res) => {
     if (!course) {
       return res.status(404).send();
     }
-    await Lesson.findByIdAndDelete(id);
+    await Lesson.findByIdAndDelete({
+      courseId: id,
+    });
 
-    const deleteUserCourses = await User.findByIdAndUpdate(req.params.id, {
-      $pull: {
+    const deleteUserCourses = await User.findByIdAndUpdate(
+      {
         enrolledCourses: {
-          courseId: req.params.id,
+          courseId: id,
         },
       },
-    });
+      {
+        $pull: {
+          enrolledCourses: {
+            courseId: req.params.id,
+          },
+        },
+      }
+    );
     console.log(deleteUserCourses);
     res.status(200).send({
       message: "Course deleted successfully",
@@ -224,17 +233,20 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
       return res.status(404).send({ error: "Course not found" });
     }
 
-    // Find the specific topic by ID within the course
-    const topic = course.topics.id(topicId);
+    const topic = course.topics.find(
+      (topic) => topic._id.toString() === topicId
+    );
+    console.log(topic);
     if (!topic) {
       return res.status(404).send({ error: "Topic not found" });
     }
-    console.log(topic);
-    // Assuming topic.lessons is an array of lesson IDs
-    // Use the $in operator to find lessons whose IDs are listed in topic.lessons
+
+    // Retrieve lessons based on topic.lessons array
     const lessons = await Lesson.find({
       _id: { $in: topic.lessons },
     });
+
+    console.log();
 
     res.status(200).send(lessons);
   } catch (error) {
@@ -243,64 +255,67 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   }
 });
 
-// router.post('/courses/:courseId/topics/:topicId/lessons', async (req, res) => {
-//     const { courseId, topicId } = req.params;
-//     const lesson = new Lesson({
-//         ...req.body,
-//     });
-//     try {
-//         const savedLesson = await lesson.save();
-//         const course = await Course.findById(courseId);
-//         // Find the topic by topicId and push the lesson ID
-//         const topic = course.topics.id(topicId); // Accessing the specific topic by ID
-//         if (!topic) {
-//             return res.status(404).send({ error: 'Topic not found' });
-//         }
-//         topic.lessons.push(savedLesson._id); // Assumes `lessons` is a field in the topic schema
-//         await course.save();
-
-//         res.status(201).send(savedLesson);
-//     } catch (error) {
-//         res.status(400).send(error);
-//     }
-// });
 router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   const { courseId, topicId } = req.params;
-  const { duration } = req.body; // Assuming duration is sent in the request body
-
+  const lesson = await Lesson.create({
+    courseId: courseId,
+    topicId: topicId,
+    ...req.body,
+  });
   try {
-    const savedLesson = await new Lesson({
-      ...req.body,
-      courseId, // Assuming your lesson schema requires a courseId
-    }).save();
-
     const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).send({ error: "Course not found" });
-    }
-
-    // Accessing the specific topic by ID
-    const topic = course.topics.id(topicId);
+    // Find the topic by topicId and push the lesson ID
+    const topic = course.topics.id(topicId); // Accessing the specific topic by ID
     if (!topic) {
       return res.status(404).send({ error: "Topic not found" });
     }
-
-    // Push the new lesson ID into the topic's lessons array
-    topic.lessons.push(savedLesson._id);
-
-    // Update lesson count and total duration at the course level
-    // This assumes you have lessonCount and totalDuration fields in your course model
-    course.lessons = (course.lessons || 0) + 1;
-    course.duration = (course.duration || 0) + (duration || 0);
-
+    topic.lessons.push(lesson._id); // Assumes `lessons` is a field in the topic schema
     await course.save();
 
-    res.status(201).send(savedLesson);
+    res.status(201).send(lesson);
   } catch (error) {
-    console.error(error);
-    res.status(500).send(error);
+    res.status(400).send(error);
   }
 });
+
+
+// router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
+//   const { courseId, topicId } = req.params;
+//   const { content, title, duration } = req.body;
+//   try {
+//     const course = await Course.findById(courseId);
+//     // Ensure the course exists
+//     if (!course) {
+//       return res.status(404).send({ error: "Course not found" });
+//     }
+//     const lesson = await Lesson.create({
+//       courseId: courseId,
+//       topicId: topicId,
+//       title: title,
+//       duration,
+//     });
+
+//     await Lesson.findByIdAndUpdate(lesson._id, {
+//       $push: {
+//         content: content,
+//       },
+//     });
+
+//     const findCourse = course.topics.find((i) => i._id.toString() === topicId);
+
+//     console.log(findCourse);
+
+//     if (findCourse) {
+//       findCourse.lessons.push(lesson._id);
+//     }
+
+//     await course.save();
+//     res.status(200).send(lesson);
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).send({ error: "Server error" });
+//   }
+// });
 
 // Delete a topic from a course
 // router.delete("/courses/:courseId/topics/:topicId", async (req, res) => {
