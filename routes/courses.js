@@ -257,19 +257,22 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
 
 router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   const { courseId, topicId } = req.params;
-  const lesson = await Lesson.create({
-    courseId: courseId,
-    topicId: topicId,
-    ...req.body,
-  });
+  console.log(req.body);
   try {
+    const lesson = await Lesson.create({
+      courseId: courseId,
+      topicId: topicId,
+      ...req.body,
+    });
     const course = await Course.findById(courseId);
     // Find the topic by topicId and push the lesson ID
     const topic = course.topics.id(topicId); // Accessing the specific topic by ID
     if (!topic) {
       return res.status(404).send({ error: "Topic not found" });
     }
-    topic.lessons.push(lesson._id); // Assumes `lessons` is a field in the topic schema
+    topic.lessons.push(lesson._id);
+    course.duration += Number(req.body.duration)|| 0;
+    course.lessons += 1;
     await course.save();
 
     res.status(201).send(lesson);
@@ -277,7 +280,6 @@ router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
     res.status(400).send(error);
   }
 });
-
 
 // router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
 //   const { courseId, topicId } = req.params;
