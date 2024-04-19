@@ -65,12 +65,28 @@ router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
 
     await lesson.save();
 
-
     res.status(200).json({
       message: "Content updated successfully",
     });
   } catch (error) {
     res.status(500).send(error);
+  }
+});
+
+router.patch("/lesson/:lessonId/content", async (req, res) => {
+  const { lessonId } = req.params;
+  console.log(req.body);
+  try {
+    const content = await Lesson.findByIdAndUpdate(lessonId, {
+      $push: {
+        content: req.body,
+      },
+    });
+    res.status(201).json({
+      message: "Content added successfully",
+    });
+  } catch (error) {
+    res.status(400).send(error);
   }
 });
 
