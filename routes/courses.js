@@ -123,31 +123,18 @@ router.post("/courses", async (req, res) => {
 router.delete("/courses/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const course = await Course.findByIdAndDelete(req.params.id);
+    // Step 1: Delete all lessons associated with the course
+    await Lesson.deleteMany({ courseId: id });
+
+    // Step 3: Remove the course from the 'enrolledCourses' array in the 'User' collection
+    await User.updateMany({}, { $pull: { enrolledCourses: { courseId: id } } });
+
+    // Finally, delete the course itself
+    const course = await Course.findByIdAndDelete(id);
     if (!course) {
       return res.status(404).send();
     }
-    await Lesson.findByIdAndDelete({
-      courseId: id,
-    });
 
-    // delete the course id in the user model
-    const deleteUserCourses = await User.findByIdAndUpdate(
-      {
-        enrolledCourses: {
-          courseId: id,
-        },
-      },
-      {
-        $pull: {
-          enrolledCourses: {
-            courseId: id,
-          },
-        },
-      }
-    );
-
-    console.log(deleteUserCourses);
     res.status(200).send({
       message: "Course deleted successfully",
     });
