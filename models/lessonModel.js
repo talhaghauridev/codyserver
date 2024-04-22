@@ -38,6 +38,12 @@ const lessonSchema = new mongoose.Schema({
     default: 0,
   },
   content: [contentBlockSchema],
+  quiz: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+    },
+  ],
 });
 
 module.exports = mongoose.model("Lesson", lessonSchema);

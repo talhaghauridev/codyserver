@@ -6,6 +6,7 @@ const courseRoutes = require("./routes/courses");
 const lessonRoutes = require("./routes/lessons");
 const userRoutes = require("./routes/user");
 const topicRoutes = require("./routes/topic");
+const quizRoutes = require("./routes/question");
 require("dotenv").config();
 const app = express();
 
@@ -35,7 +36,7 @@ app.use("/", courseRoutes);
 app.use("/", lessonRoutes);
 app.use("/", userRoutes);
 app.use("/", topicRoutes);
-
+app.use("/", quizRoutes);
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

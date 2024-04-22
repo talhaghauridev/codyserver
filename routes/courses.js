@@ -131,6 +131,7 @@ router.delete("/courses/:id", async (req, res) => {
       courseId: id,
     });
 
+    // delete the course id in the user model
     const deleteUserCourses = await User.findByIdAndUpdate(
       {
         enrolledCourses: {
@@ -140,11 +141,12 @@ router.delete("/courses/:id", async (req, res) => {
       {
         $pull: {
           enrolledCourses: {
-            courseId: req.params.id,
+            courseId: id,
           },
         },
       }
     );
+
     console.log(deleteUserCourses);
     res.status(200).send({
       message: "Course deleted successfully",
@@ -271,7 +273,7 @@ router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
       return res.status(404).send({ error: "Topic not found" });
     }
     topic.lessons.push(lesson._id);
-    course.duration += Number(req.body.duration)|| 0;
+    course.duration += Number(req.body.duration) || 0;
     course.lessons += 1;
     await course.save();
 
