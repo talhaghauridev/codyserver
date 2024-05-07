@@ -22,7 +22,7 @@ router.post("/questions/:lessonId", async (req, res) => {
 
     // Update lesson with quiz
     lesson.quiz.push(quiz._id);
-    await lesson.save();
+    await lesson.save({ validateBeforeSave: false });
 
     res.status(201).json({ message: "Quiz created successfully" });
   } catch (error) {
@@ -41,7 +41,31 @@ router.get("/questions/:lessonId", async (req, res) => {
 
     res
       .status(201)
-      .json({ question: lesson.quiz, questionCount: lesson.quiz.length });
+      .json({ questions: lesson.quiz, questionCount: lesson.quiz.length });
+  } catch (error) {
+    console.error("Error creating quiz:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.patch("/questions/:lessonId/:questionId", async (req, res) => {
+  try {
+    const { lessonId, questionId } = req.params;
+    const { question, answer, options } = req.body;
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) {
+      return res.status(404).json({ message: "Lesson not found" });
+    }
+
+    const questions = await Question.findByIdAndUpdate(questionId, {
+      $set: {
+        question,
+        answer,
+        options,
+      },
+    });
+
+    res.status(201).json({ message: "Quiz delete successfully" });
   } catch (error) {
     console.error("Error creating quiz:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -59,7 +83,7 @@ router.delete("/questions/:lessonId/:questionId", async (req, res) => {
     await Question.findByIdAndDelete(questionId);
     lesson.quiz = lesson.quiz.filter((i) => i.toString() !== questionId);
 
-    await lesson.save();
+    await lesson.save({ validateBeforeSave: false });
 
     res.status(201).json({ message: "Quiz delete successfully" });
   } catch (error) {
