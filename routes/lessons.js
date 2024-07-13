@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Lesson = require("../models/lessonModel");
 const { default: mongoose } = require("mongoose");
+const ErrorHandler = require("../utils/ErrorHandler");
 router.get("/lessons", async (req, res) => {
   try {
     const lessons = await Lesson.find();
@@ -50,23 +51,19 @@ router.get("/lessons/:id", async (req, res) => {
 router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
   try {
     const { lessonId, contentId } = req.params;
-    const { type, text, language } = req.body;
+    const { type, text } = req.body;
     const lesson = await Lesson.findById(lessonId);
     if (!lesson) {
-      return res.status(404).send();
+      return next(new ErrorHandler("Lesson not found"));
     }
-    console.log(lessonId, contentId);
     const contentBlock = lesson.content.find((block) => {
       return block._id.toString() === contentId.toString();
     });
-    if (language) {
-      contentBlock.language = language;
-    }
-    console.log(contentBlock);
+
     contentBlock.text = text;
     contentBlock.type = type;
 
-    await lesson.save();
+    await lesson.save({ validateBeforeSave: false });
 
     res.status(200).json({
       message: "Content updated successfully",
@@ -76,20 +73,36 @@ router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
   }
 });
 
-router.patch("/lesson/:lessonId/content", async (req, res) => {
+//Add Lesson Content
+router.patch("/lesson/:lessonId/content", async (req, res, next) => {
   const { lessonId } = req.params;
   console.log(req.body);
+  const { text, type, language } = req.body;
+
+  if (!text || !type) {
+    return next(new ErrorHandler("Please fill all fields", 400));
+  }
+
+  if (type === "code" && !language) {
+    return next(new ErrorHandler("Please provide a code language", 400));
+  }
+
+  let content = { text, type };
+
+  if (type === "code" && language) {
+    content.language = language;
+  }
   try {
-    const content = await Lesson.findByIdAndUpdate(lessonId, {
+    await Lesson.findByIdAndUpdate(lessonId, {
       $push: {
-        content: req.body,
+        content,
       },
     });
     res.status(201).json({
       message: "Content added successfully",
     });
   } catch (error) {
-    res.status(400).send(error);
+    throw new ErrorHandler(error.message, 500);
   }
 });
 
