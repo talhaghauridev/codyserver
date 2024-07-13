@@ -39,36 +39,23 @@ router.get("/lessons/:id", async (req, res) => {
         }
       })
     );
+    console.log(formattedContent);
 
-    // Update the lesson content with the formatted code blocks
-    const formattedLesson = { ...lesson.toObject(), content: formattedContent };
+    const filteredContent = formattedContent.map((item) => {
+      if (
+        item.type !== "code" &&
+        (item.language === undefined || item.language === "")
+      ) {
+        const { language, ...itemWithoutLanguage } = item.toObject();
+        return itemWithoutLanguage;
+      }
+      return item;
+    });
+    const formattedLesson = { ...lesson.toObject(), content: filteredContent };
 
     res.status(200).send(formattedLesson);
   } catch (error) {
-    res.status(500).send(error);
-  }
-});
-router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
-  try {
-    const { lessonId, contentId } = req.params;
-    const { type, text } = req.body;
-    const lesson = await Lesson.findById(lessonId);
-    if (!lesson) {
-      return next(new ErrorHandler("Lesson not found"));
-    }
-    const contentBlock = lesson.content.find((block) => {
-      return block._id.toString() === contentId.toString();
-    });
-
-    contentBlock.text = text;
-    contentBlock.type = type;
-
-    await lesson.save({ validateBeforeSave: false });
-
-    res.status(200).json({
-      message: "Content updated successfully",
-    });
-  } catch (error) {
+    console.log(error);
     res.status(500).send(error);
   }
 });
@@ -86,7 +73,9 @@ router.patch("/lesson/:lessonId/content", async (req, res, next) => {
   if (type === "code" && !language) {
     return next(new ErrorHandler("Please provide a code language", 400));
   }
-
+  if (type !== "code" && language) {
+    return next(new ErrorHandler("Please select the Code Type"));
+  }
   let content = { text, type };
 
   if (type === "code" && language) {
@@ -106,4 +95,72 @@ router.patch("/lesson/:lessonId/content", async (req, res, next) => {
   }
 });
 
+//Update Lesson Content
+router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
+  try {
+    const { lessonId, contentId } = req.params;
+    const { type, text, language } = req.body;
+
+    if (!text || !type) {
+      return next(new ErrorHandler("Please fill all fields", 400));
+    }
+
+    if (type === "code" && !language) {
+      return next(new ErrorHandler("Please provide a code language", 400));
+    }
+    if (type !== "code" && language) {
+      return next(new ErrorHandler("Please select the Code Type"));
+    }
+
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) {
+      return next(new ErrorHandler("Lesson not found"));
+    }
+    const contentBlock = lesson.content.find((block) => {
+      return block._id.toString() === contentId.toString();
+    });
+
+    contentBlock.text = text;
+    contentBlock.type = type;
+
+    if (type === "code") {
+      contentBlock.language = language;
+    } else {
+      contentBlock.language = ""; // Clear language for non-code types if present
+    }
+
+    await lesson.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      message: "Content updated successfully",
+    });
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+//Delete Lesson Content
+router.delete(
+  "/lesson/:lessonId/content/:contentId",
+  async (req, res, next) => {
+    try {
+      const { lessonId, contentId } = req.params;
+      const lesson = await Lesson.findById(lessonId);
+      if (!lesson) {
+        return next(new ErrorHandler("Lesson not found"));
+      }
+
+      lesson.content = lesson.content.filter((block) => {
+        return block._id.toString() !== contentId.toString();
+      });
+
+      await lesson.save({ validateBeforeSave: false });
+      res.status(200).json({
+        message: "Content Deleted successfully",
+      });
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  }
+);
 module.exports = router;
