@@ -50,7 +50,7 @@ router.get("/lessons/:id", async (req, res) => {
 router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
   try {
     const { lessonId, contentId } = req.params;
-    const { type, text, title, duration } = req.body;
+    const { type, text, language } = req.body;
     const lesson = await Lesson.findById(lessonId);
     if (!lesson) {
       return res.status(404).send();
@@ -59,6 +59,9 @@ router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
     const contentBlock = lesson.content.find((block) => {
       return block._id.toString() === contentId.toString();
     });
+    if (language) {
+      contentBlock.language = language;
+    }
     console.log(contentBlock);
     contentBlock.text = text;
     contentBlock.type = type;
