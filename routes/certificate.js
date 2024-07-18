@@ -3,8 +3,18 @@ const puppeteer = require('puppeteer');
 const router = express.Router();
 const puppeteerLaunchOptions = {
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    timeout: 60000 
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
+    timeout: 120000 // Increase timeout to 2 minutes
   };
 
   router.get('/', async (req, res) => {
@@ -188,6 +198,12 @@ router.get('/download-pdf', async (req, res) => {
       browser = await puppeteer.launch(puppeteerLaunchOptions);
       const page = await browser.newPage();
       
+      await page.setViewport({
+        width: 1024,
+        height: 768,
+        deviceScaleFactor: 1,
+      });
+      
       await page.setContent(generateCertificateHtml(name, course, date, duration));
       
       const element = await page.$('#certificate');
@@ -203,8 +219,8 @@ router.get('/download-pdf', async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(name)}_certificate.jpg`);
       res.send(screenshot);
     } catch (error) {
-      console.error('Error generating JPG:', error);
-      res.status(500).send('Error generating JPG');
+        console.error('Detailed error:', error);
+        res.status(500).send(`Error generating JPG: ${error.message}`);
     } finally {
       if (browser) await browser.close();
     }
