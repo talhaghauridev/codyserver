@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: codyserver-1
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true

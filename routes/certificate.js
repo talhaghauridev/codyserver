@@ -13,7 +13,6 @@ const puppeteerLaunchOptions = {
       '--single-process',
       '--disable-gpu'
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
     timeout: 120000 // Increase timeout to 2 minutes
   };
 
