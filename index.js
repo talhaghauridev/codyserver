@@ -1,15 +1,17 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const path = require("path");
 const cors = require("cors"); // Import CORS
 const courseRoutes = require("./routes/courses");
 const lessonRoutes = require("./routes/lessons");
 const userRoutes = require("./routes/user");
 const topicRoutes = require("./routes/topic");
 const quizRoutes = require("./routes/question");
+const certificateRoutes = require("./routes/certificate");
 require("dotenv").config();
 const app = express();
-
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
 
@@ -37,6 +39,7 @@ app.use("/", lessonRoutes);
 app.use("/", userRoutes);
 app.use("/", topicRoutes);
 app.use("/", quizRoutes);
+app.use("/certificate",certificateRoutes)
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
