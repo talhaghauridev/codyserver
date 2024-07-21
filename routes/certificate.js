@@ -1,7 +1,7 @@
-const { Certificate } = require('crypto');
 const express = require('express');
 const puppeteer = require('puppeteer');
 const User = require('../models/userModel');
+const Certificate = require('../models/certificate');
 const router = express.Router();
 const puppeteerLaunchOptions = {
     headless: 'new',
@@ -19,7 +19,7 @@ const puppeteerLaunchOptions = {
 };
 router.post('/generate', async (req, res) => {
     try {
-        const { userName, courseName, courseDuration, userId } = req.body;
+        const { userName, courseName, courseDuration, userId,courseId } = req.body;
 
         const certificateNumber = 'UC-' + Math.random().toString(36).substr(2, 9);
         const referenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
@@ -30,7 +30,8 @@ router.post('/generate', async (req, res) => {
             courseName,
             courseDuration,
             certificateNumber,
-            referenceNumber
+            referenceNumber,
+            courseId
         });
 
         await certificate.save();
