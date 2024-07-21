@@ -19,7 +19,13 @@ const puppeteerLaunchOptions = {
 };
 router.post('/generate', async (req, res) => {
     try {
-        const { userName, courseName, courseDuration, userId,courseId } = req.body;
+        const { userName, courseName, courseDuration, userId, courseId } = req.body;
+
+        const existingCertificate = await Certificate.findOne({ userId, courseId });
+
+        if (existingCertificate) {
+            return res.status(200).send("Certificate already exists");
+        }
 
         const certificateNumber = 'UC-' + Math.random().toString(36).substr(2, 9);
         const referenceNumber = Math.floor(1000 + Math.random() * 9000).toString();
@@ -35,11 +41,13 @@ router.post('/generate', async (req, res) => {
         });
 
         await certificate.save();
-        res.status(201).json(certificate);
+
+        res.status(201).send(certificate);
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).send("Error: " + error.message);
     }
 });
+
 
 // Get all certificates
 router.get('/', async (req, res) => {
