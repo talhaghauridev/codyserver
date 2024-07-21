@@ -3,6 +3,8 @@ const router = express.Router();
 const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const User = require("../models/userModel");
+const { calculateDuration } = require("../utils/calculateDuration");
+const ErrorHandler = require("../utils/ErrorHandler");
 
 router.get("/courses", async (req, res) => {
   try {
@@ -158,23 +160,53 @@ router.patch("/courses/:id", async (req, res) => {
     res.status(500).send(error);
   }
 });
+async function updateTopicDuration(courseId, topicId) {
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new Error("Course not found");
+  }
 
-router.post("/courses/:courseId/lessons", async (req, res) => {
+  const topic = course.topics.id(topicId);
+  if (!topic) {
+    throw new Error("Topic not found");
+  }
+
+  const totalDurationResult = await Lesson.aggregate([
+    { $match: { _id: { $in: topic.lessons } } },
+    { $group: { _id: null, totalDuration: { $sum: "$duration" } } },
+  ]);
+
+  const totalDuration =
+    totalDurationResult.length > 0 ? totalDurationResult[0].totalDuration : 0;
+
+  topic.duration = totalDuration;
+  await course.save();
+}
+router.post("/courses/:courseId/lessons", async (req, res, next) => {
   const { content, ...lessonData } = req.body;
+  const { courseId } = req.params;
 
   const processedContent = content.map((block) => ({
     _id: new mongoose.Types.ObjectId(),
     ...block,
   }));
-
+  const duration = calculateDuration(content);
   const lesson = new Lesson({
     ...lessonData,
     courseId: req.params.courseId,
     content: processedContent,
+    duration,
   });
 
   try {
     const savedLesson = await lesson.save();
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+    course.lessons.push(savedLesson._id);
+
+    course.topics.addToSet;
     await Course.findByIdAndUpdate(req.params.courseId, {
       $push: { lessons: savedLesson._id },
     });

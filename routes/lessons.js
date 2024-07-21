@@ -60,10 +60,9 @@ router.get("/lessons/:id", async (req, res) => {
   }
 });
 
-//Add Lesson Content
+// Add Lesson Content
 router.patch("/lesson/:lessonId/content", async (req, res, next) => {
   const { lessonId } = req.params;
-  console.log(req.body);
   const { text, type, language } = req.body;
 
   if (!text || !type) {
@@ -76,66 +75,80 @@ router.patch("/lesson/:lessonId/content", async (req, res, next) => {
   if (type !== "code" && language) {
     return next(new ErrorHandler("Please select the Code Type"));
   }
-  let content = { text, type };
 
+  let content = { text, type };
   if (type === "code" && language) {
     content.language = language;
   }
+
   try {
-    await Lesson.findByIdAndUpdate(lessonId, {
-      $push: {
-        content,
-      },
-    });
-    res.status(201).json({
-      message: "Content added successfully",
-    });
-  } catch (error) {
-    throw new ErrorHandler(error.message, 500);
-  }
-});
-
-//Update Lesson Content
-router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
-  try {
-    const { lessonId, contentId } = req.params;
-    const { type, text, language } = req.body;
-
-    if (!text || !type) {
-      return next(new ErrorHandler("Please fill all fields", 400));
-    }
-
-    if (type === "code" && !language) {
-      return next(new ErrorHandler("Please provide a code language", 400));
-    }
-    if (type !== "code" && language) {
-      return next(new ErrorHandler("Please select the Code Type"));
-    }
-
     const lesson = await Lesson.findById(lessonId);
     if (!lesson) {
       return next(new ErrorHandler("Lesson not found"));
     }
-    const contentBlock = lesson.content.find((block) => {
-      return block._id.toString() === contentId.toString();
-    });
 
+    // Add new content
+    lesson.content.push(content);
+
+    // Recalculate duration
+    lesson.duration = calculateDuration(lesson.content);
+
+    await lesson.save({ validateBeforeSave: false });
+
+    res.status(201).json({
+      message: "Content added successfully",
+      duration: lesson.duration,
+    });
+  } catch (error) {
+    next(new ErrorHandler(error.message, 500));
+  }
+});
+
+// Update Lesson Content
+router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
+  const { lessonId, contentId } = req.params;
+  const { type, text, language } = req.body;
+
+  if (!text || !type) {
+    return next(new ErrorHandler("Please fill all fields", 400));
+  }
+
+  if (type === "code" && !language) {
+    return next(new ErrorHandler("Please provide a code language", 400));
+  }
+  if (type !== "code" && language) {
+    return next(new ErrorHandler("Please select the Code Type"));
+  }
+
+  try {
+    const lesson = await Lesson.findById(lessonId);
+    if (!lesson) {
+      return next(new ErrorHandler("Lesson not found"));
+    }
+
+    const contentBlock = lesson.content.find(
+      (block) => block._id.toString() === contentId.toString()
+    );
+    if (!contentBlock) {
+      return next(new ErrorHandler("Content block not found"));
+    }
+
+    // Update content block
     contentBlock.text = text;
     contentBlock.type = type;
+    contentBlock.language = type === "code" ? language : "";
 
-    if (type === "code") {
-      contentBlock.language = language;
-    } else {
-      contentBlock.language = ""; // Clear language for non-code types if present
-    }
+    // Recalculate duration
+    lesson.duration = calculateDuration(lesson.content);
 
     await lesson.save({ validateBeforeSave: false });
 
     res.status(200).json({
       message: "Content updated successfully",
+      duration: lesson.duration,
     });
   } catch (error) {
-    res.status(500).send(error);
+    next(new ErrorHandler(error.message, 500));
   }
 });
 
@@ -143,24 +156,32 @@ router.patch("/lesson/:lessonId/content/:contentId", async (req, res, next) => {
 router.delete(
   "/lesson/:lessonId/content/:contentId",
   async (req, res, next) => {
+    const { lessonId, contentId } = req.params;
+
     try {
-      const { lessonId, contentId } = req.params;
       const lesson = await Lesson.findById(lessonId);
       if (!lesson) {
         return next(new ErrorHandler("Lesson not found"));
       }
 
-      lesson.content = lesson.content.filter((block) => {
-        return block._id.toString() !== contentId.toString();
-      });
+      // Remove content block
+      lesson.content = lesson.content.filter(
+        (block) => block._id.toString() !== contentId.toString()
+      );
+
+      // Recalculate duration
+      lesson.duration = calculateDuration(lesson.content);
 
       await lesson.save({ validateBeforeSave: false });
+
       res.status(200).json({
-        message: "Content Deleted successfully",
+        message: "Content deleted successfully",
+        duration: lesson.duration,
       });
     } catch (error) {
-      res.status(500).send(error);
+      next(new ErrorHandler(error.message, 500));
     }
   }
 );
+
 module.exports = router;
