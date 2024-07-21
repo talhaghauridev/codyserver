@@ -13,7 +13,7 @@ const puppeteerLaunchOptions = {
       '--single-process',
       '--disable-gpu'
     ],
-    timeout: 120000 // Increase timeout to 2 minutes
+    timeout: 120000 
   };
 
   router.get('/', async (req, res) => {
