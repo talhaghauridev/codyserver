@@ -11,7 +11,7 @@ const quizRoutes = require("./routes/question");
 const certificateRoutes = require("./routes/certificate");
 require("dotenv").config();
 const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
 
@@ -39,7 +39,7 @@ app.use("/", lessonRoutes);
 app.use("/", userRoutes);
 app.use("/", topicRoutes);
 app.use("/", quizRoutes);
-app.use("/certificate",certificateRoutes)
+app.use("/certificate", certificateRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;

@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const ErrorHandler = require("../utils/ErrorHandler");
+const isAuthenticated = require("../middlewares/auth");
 
 // Regis
 router.post("/signup", async (req, res, next) => {
@@ -230,6 +231,67 @@ router.get(
   })
 );
 
+router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
+  const { email, name } = req.body;
+  if (!email || !name) {
+    return next(new ErrorHandler("Please fill all fields", 400));
+  }
+  const newUserData = {
+    name,
+    email,
+  };
+
+  // if (req.body.avatar !== "") {
+  //     const user = await User.findById(req.user.id);
+
+  //     const imageId = user.avatar.public_id;
+
+  //     await cloudinary.v2.uploader.destroy(imageId);
+
+  //     const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
+  //         folder: "avatars",
+  //         width: 150,
+  //         crop: "scale",
+  //     });
+
+  //     newUserData.avatar = {
+  //         public_id: myCloud.public_id,
+  //         url: myCloud.secure_url,
+  //     }
+  // }
+
+  await User.findByIdAndUpdate(req.user.id, newUserData, {
+    runValidators: false,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Profile has been updated!",
+  });
+});
+
+router.patch("/change-password", isAuthenticated, async (req, res, next) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword) {
+    return next(new ErrorHandler("Please fill all fields", 400));
+  }
+  console.log(req.body);
+  const user = await User.findById(req.user?._id).select("+password");
+  console.log({ user });
+  const isPasswordMatched = await user.comparePassword(oldPassword);
+  console.log({ isPasswordMatched });
+  if (!isPasswordMatched) {
+    return next(new ErrorHandler("Old Password is Invalid", 400));
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  res.status(200).json({
+    success: true,
+    message: "Password Updated Successfully",
+  });
+});
+
 // // Logout User
 // exports.logoutUser = asyncErrorHandler(async (req, res, next) => {
 //     res.cookie("token", null, {
@@ -335,41 +397,5 @@ router.get(
 // });
 
 // // Update User Profile
-// exports.updateProfile = asyncErrorHandler(async (req, res, next) => {
-
-//     const newUserData = {
-//         name: req.body.name,
-//         email: req.body.email,
-//     }
-
-//     if (req.body.avatar !== "") {
-//         const user = await User.findById(req.user.id);
-
-//         const imageId = user.avatar.public_id;
-
-//         await cloudinary.v2.uploader.destroy(imageId);
-
-//         const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
-//             folder: "avatars",
-//             width: 150,
-//             crop: "scale",
-//         });
-
-//         newUserData.avatar = {
-//             public_id: myCloud.public_id,
-//             url: myCloud.secure_url,
-//         }
-//     }
-
-//     await User.findByIdAndUpdate(req.user.id, newUserData, {
-//         new: true,
-//         runValidators: true,
-//         useFindAndModify: true,
-//     });
-
-//     res.status(200).json({
-//         success: true,
-//     });
-// });
 
 module.exports = router;

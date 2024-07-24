@@ -3,6 +3,7 @@ const router = express.Router();
 const Lesson = require("../models/lessonModel");
 const { default: mongoose } = require("mongoose");
 const ErrorHandler = require("../utils/ErrorHandler");
+const { calculateDuration } = require("../utils/calculateDuration");
 router.get("/lessons", async (req, res) => {
   try {
     const lessons = await Lesson.find();
@@ -11,6 +12,7 @@ router.get("/lessons", async (req, res) => {
     res.status(500).send(error);
   }
 });
+
 router.get("/lessons/:id", async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id);
