@@ -5,6 +5,7 @@ const Lesson = require("../models/lessonModel");
 const User = require("../models/userModel");
 const { calculateDuration } = require("../utils/calculateDuration");
 const ErrorHandler = require("../utils/ErrorHandler");
+const Certificate = require("../models/certificate");
 
 router.get("/courses", async (req, res) => {
   try {
@@ -31,7 +32,7 @@ router.get("/course/:userId/:courseId", async (req, res) => {
   try {
     // Find the user by ID
     const user = await User.findById(req.params.userId);
-
+    const certificate = await Certificate.findOne({ userId: req.params.userId, courseId: req.params.courseId });
     // Check if the user exists
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -57,7 +58,11 @@ router.get("/course/:userId/:courseId", async (req, res) => {
 
     if (enrolledCourse) {
       // User is enrolled, add lesson completion details and progress
+      if (certificate) {
+        courseObject.certificate = true;
+      }
       courseObject.enrolled = true;
+
       courseObject.progress = enrolledCourse.progress; // Add overall course progress
       courseObject.topics = courseObject.topics.map((topic) => {
         topic.lessons = topic.lessons.map((lesson) => {
