@@ -3,7 +3,10 @@ const router = express.Router();
 const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const User = require("../models/userModel");
-const { calculateDuration } = require("../utils/calculateDuration");
+const {
+  calculateDuration,
+  estimateReadingTime,
+} = require("../utils/calculateDuration");
 const ErrorHandler = require("../utils/ErrorHandler");
 const Certificate = require("../models/certificate");
 
@@ -32,7 +35,10 @@ router.get("/course/:userId/:courseId", async (req, res) => {
   try {
     // Find the user by ID
     const user = await User.findById(req.params.userId);
-    const certificate = await Certificate.findOne({ userId: req.params.userId, courseId: req.params.courseId });
+    const certificate = await Certificate.findOne({
+      userId: req.params.userId,
+      courseId: req.params.courseId,
+    });
     // Check if the user exists
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -257,12 +263,16 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
 
 router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   const { courseId, topicId } = req.params;
-  console.log(req.body);
+  const { title, content } = req.body;
+  const duration = estimateReadingTime(JSON.parse(content));
+  console.log({ ...req.body, duration });
   try {
     const lesson = await Lesson.create({
       courseId: courseId,
       topicId: topicId,
-      ...req.body,
+      content: JSON.parse(content),
+      title,
+      duration,
     });
     const course = await Course.findById(courseId);
     // Find the topic by topicId and push the lesson ID

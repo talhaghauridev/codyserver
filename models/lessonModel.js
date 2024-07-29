@@ -37,7 +37,10 @@ const lessonSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  content: [contentBlockSchema],
+  content: {
+    type: String,
+    required: true,
+  },
   quiz: [
     {
       type: mongoose.Schema.Types.ObjectId,
