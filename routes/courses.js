@@ -264,30 +264,55 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
 router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   const { courseId, topicId } = req.params;
   const { title, content } = req.body;
-  const duration = estimateReadingTime(JSON.parse(content));
-  console.log({ ...req.body, duration });
+
   try {
+    // Parse content to calculate the estimated reading time
+    const parsedContent = JSON.parse(content);
+    const duration = estimateReadingTime(parsedContent);
+
     const lesson = await Lesson.create({
       courseId: courseId,
       topicId: topicId,
-      content: JSON.parse(content),
+      content: parsedContent,
       title,
       duration,
     });
+
     const course = await Course.findById(courseId);
-    // Find the topic by topicId and push the lesson ID
-    const topic = course.topics.id(topicId); // Accessing the specific topic by ID
+    if (!course) {
+      return res.status(404).send({ error: "Course not found" });
+    }
+
+    // Find the topic by topicId
+    const topic = course.topics.id(topicId);
     if (!topic) {
       return res.status(404).send({ error: "Topic not found" });
     }
+
+    // Add the lesson ID to the topic
     topic.lessons.push(lesson._id);
-    course.duration += Number(req.body.duration) || 0;
+
+    // Update topic duration
+    topic.duration += Number(duration);
+
+    // Calculate the total course duration by summing up all topic durations
+    const totalCourseDuration = course.topics.reduce(
+      (total, t) => total + t.duration,
+      0
+    );
+
+    // Update course duration and lesson count
+    course.duration = totalCourseDuration;
     course.lessons += 1;
-    await course.save();
+
+    await course.save({ validateBeforeSave: false });
 
     res.status(201).send(lesson);
   } catch (error) {
-    res.status(400).send(error);
+    console.error(error);
+    res
+      .status(400)
+      .send({ error: "An error occurred while adding the lesson" });
   }
 });
 

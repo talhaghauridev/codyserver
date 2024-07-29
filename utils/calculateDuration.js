@@ -36,6 +36,7 @@ function estimateReadingTime(markdown, wordsPerMinute = 225) {
     .replace(/-{3,}/g, "") // Remove thematic breaks
     .replace(/\n+/g, " ") // Replace newlines with spaces
     .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+    .replace(/&\w+;/g, " ") // Remove other HTML entities
     .trim();
 
   // For debugging, print the clean markdown text
