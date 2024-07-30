@@ -201,21 +201,9 @@ router.post("/courses/:courseId/lessons", async (req, res, next) => {
   }
 });
 
-// Delete a lesson
-router.delete("/lessons/:id", async (req, res) => {
-  try {
-    const lesson = await Lesson.findByIdAndDelete(req.params.id);
-    if (!lesson) {
-      return res.status(404).send();
-    }
-    res.send(lesson);
-  } catch (error) {
-    res.status(500).send(error);
-  }
-});
-
 // Course Sections (Topics)
 // Add a topic to a course
+
 router.post("/courses/:id/topics", async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -261,6 +249,7 @@ router.get("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   }
 });
 
+//Add Lesson
 router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
   const { courseId, topicId } = req.params;
   const { title, content } = req.body;
@@ -313,6 +302,89 @@ router.post("/courses/:courseId/topics/:topicId/lessons", async (req, res) => {
     res
       .status(400)
       .send({ error: "An error occurred while adding the lesson" });
+  }
+});
+
+// Update Lesson
+router.patch("/lessons/:id", async (req, res, next) => {
+  const lessonId = req.params.id;
+  const { title, content } = req.body;
+  if (!title || !content) {
+    return next(new ErrorHandler("Please fill all fields", 400));
+  }
+  const oldLesson = await Lesson.findById(lessonId);
+
+  if (!oldLesson) {
+    return next(new ErrorHandler("Lesson not found", 400));
+  }
+  const oldDuration = oldLesson.duration;
+  const parsedContent = JSON.parse(content);
+  const newDuration = estimateReadingTime(content);
+  console.log({ newDuration });
+  try {
+    const updateLesson = await Lesson.findByIdAndUpdate(
+      lessonId,
+      {
+        $set: {
+          title,
+          duration: newDuration,
+          content: parsedContent,
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
+    const { topicId, courseId } = updateLesson;
+
+    const course = await Course.findById(courseId);
+
+    const topic = course.topics.id(topicId);
+    if (!topic) {
+      return next(new ErrorHandler("Topic not found", 404));
+    }
+    topic.duration = topic.duration - oldDuration + newDuration;
+
+    const totalCourseDuration = course.topics.reduce(
+      (total, t) => total + t.duration,
+      0
+    );
+
+    course.duration = totalCourseDuration;
+
+    await course.save({ validateBeforeSave: false });
+    res.send({ message: "Lesson deleted successfully" });
+  } catch (error) {
+    return next(new ErrorHandler(error, 500));
+  }
+});
+
+// Delete a lesson
+router.delete("/lessons/:id", async (req, res, next) => {
+  try {
+    const lesson = await Lesson.findByIdAndDelete(req.params.id);
+
+    if (!lesson) {
+      return next(new ErrorHandler("Lesson not found", 404));
+    }
+    const { duration, topicId, courseId } = lesson;
+
+    const course = await Course.findById(courseId);
+
+    // Find the specific topic
+    const topic = course.topics.id(topicId);
+    if (!topic) {
+      return next(new ErrorHandler("Topic not found", 404));
+    }
+    topic.lessons.pull(lesson._id);
+    topic.duration -= duration;
+    course.duration -= duration;
+    course.lessons -= 1;
+    course.save({ validateBeforeSave: false });
+    res.send({ message: "Lesson deleted successfully" });
+  } catch (error) {
+    return next(new ErrorHandler(error, 500));
   }
 });
 

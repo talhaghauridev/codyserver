@@ -20,7 +20,6 @@ function calculateDuration(content) {
 
   return durationInMinutes;
 }
-
 function estimateReadingTime(markdown, wordsPerMinute = 225) {
   // Function to clean markdown and remove unnecessary entities
   const cleanMarkdown = markdown

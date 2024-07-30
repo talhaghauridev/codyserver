@@ -19,43 +19,7 @@ router.get("/lessons/:id", async (req, res) => {
     if (!lesson) {
       return res.status(404).send();
     }
-
-    // Assuming `language` field specifies the code language for prettier
-    // and `code` contains the actual code to be formatted.
-    const formattedContent = await Promise.all(
-      lesson.content.map(async (block) => {
-        if (block.type === "code" && block.code) {
-          try {
-            // Use prettier to format the code block
-            const formattedCode = prettier.format(block.code, {
-              parser: block.language || "babel", // Default to "babel" if language is not specified
-              plugins: [require("prettier/parser-babel")], // Make sure to include the necessary parser
-            });
-            return { ...block.toObject(), code: formattedCode }; // Update the code with formatted version
-          } catch (error) {
-            console.error("Error formatting code:", error);
-            return block; // Return the original block if formatting fails
-          }
-        } else {
-          return block; // Return the block unchanged if not a code block
-        }
-      })
-    );
-    console.log(formattedContent);
-
-    const filteredContent = formattedContent.map((item) => {
-      if (
-        item.type !== "code" &&
-        (item.language === undefined || item.language === "")
-      ) {
-        const { language, ...itemWithoutLanguage } = item.toObject();
-        return itemWithoutLanguage;
-      }
-      return item;
-    });
-    const formattedLesson = { ...lesson.toObject(), content: filteredContent };
-
-    res.status(200).send(formattedLesson);
+    res.status(200).json({ lesson });
   } catch (error) {
     console.log(error);
     res.status(500).send(error);
