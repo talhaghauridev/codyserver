@@ -77,7 +77,7 @@ router.get("/user/:userId", async (req, res) => {
     if (!user) {
       return res.status(404).send(`User not found`);
     }
-    const certificates = await Certificate.find({ id: req.parmas.userId });
+    const certificates = await Certificate.find({ id: req.params.userId });
 
     if (!certificates) {
       return res

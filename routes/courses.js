@@ -536,6 +536,7 @@ router.post("/completeLesson", async (req, res) => {
       .send({ message: "An error occurred", error: error.toString() });
   }
 });
+
 // router.post('/completeLesson', async (req, res) => {
 //     const { userId, courseId, lessonId } = req.body;
 

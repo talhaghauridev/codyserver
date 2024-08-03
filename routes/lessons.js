@@ -19,6 +19,7 @@ router.get("/lessons/:id", async (req, res) => {
     if (!lesson) {
       return res.status(404).send();
     }
+    console.log(lesson);
     res.status(200).json({ lesson });
   } catch (error) {
     console.log(error);
