@@ -19,20 +19,17 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
 
-// Connect to MongoDB
 mongoose
   .connect(
     "mongodb+srv://alighouridev:wMSxuw2Dx5EPjInL@cluster0.5gfj4zc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
     {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      ssl: true,
-      sslValidate: true,
+      serverSelectionTimeoutMS: 30000,
     }
   )
-  .then(() => {
-    console.log("MongoDB connected");
-  });
+  .then(() => console.log("MongoDB connected successfully"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 // Courses
 // Add a new course
 app.get("/", async (req, res) => {

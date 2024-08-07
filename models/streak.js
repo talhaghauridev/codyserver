@@ -86,10 +86,11 @@ streakSchema.methods.updateStreak = async function (
   coursesCompleted,
   studyHours
 ) {
-  const today = moment(activityDate).startOf("day").toDate();
+  const today = new Date(activityDate);
+  today.setHours(0, 0, 0, 0);
 
-  let dailyActivity = this.dailyActivities.find((activity) =>
-    moment(activity.date).isSame(today, "day")
+  let dailyActivity = this.dailyActivities.find(
+    (activity) => activity.date.getTime() === today.getTime()
   );
 
   if (!dailyActivity) {
@@ -103,7 +104,7 @@ streakSchema.methods.updateStreak = async function (
 
     if (
       !this.lastActivityDate ||
-      moment(today).diff(this.lastActivityDate, "days") > 1
+      (today - this.lastActivityDate) / (1000 * 60 * 60 * 24) > 1
     ) {
       this.currentStreak = 1;
     } else {
@@ -117,54 +118,47 @@ streakSchema.methods.updateStreak = async function (
     }
   }
 
+  // Update the daily activity
   dailyActivity.lessonsCompleted += lessonsCompleted;
   dailyActivity.coursesCompleted += coursesCompleted;
   dailyActivity.studyHours += studyHours;
 
+  // Update the totals
   this.totalLessonsCompleted += lessonsCompleted;
   this.totalCoursesCompleted += coursesCompleted;
   this.totalStudyHours += studyHours;
+
+  // Find the index of the daily activity and update it in the array
+  const index = this.dailyActivities.findIndex(
+    (activity) => activity.date.getTime() === today.getTime()
+  );
+  if (index !== -1) {
+    this.dailyActivities[index] = dailyActivity;
+  }
 
   await this.checkAndUpdateAchievements();
   await this.save();
   return this;
 };
 
-// Method to check and update achievements
 streakSchema.methods.checkAndUpdateAchievements = async function () {
-  const newAchievements = [];
-
-  if (this.currentStreak >= 7 && !this.hasAchievement("7DayStreak")) {
-    newAchievements.push({ type: "7DayStreak", achievedDate: new Date() });
-  }
-
-  if (this.currentStreak >= 30 && !this.hasAchievement("30DayStreak")) {
-    newAchievements.push({ type: "30DayStreak", achievedDate: new Date() });
-  }
-
-  if (
-    this.totalLessonsCompleted >= 50 &&
-    !this.hasAchievement("50LessonsCompleted")
-  ) {
-    newAchievements.push({
+  const achievementTypes = [
+    { type: "7DayStreak", condition: () => this.currentStreak >= 7 },
+    { type: "30DayStreak", condition: () => this.currentStreak >= 30 },
+    {
       type: "50LessonsCompleted",
-      achievedDate: new Date(),
-    });
-  }
-
-  if (
-    this.totalCoursesCompleted >= 5 &&
-    !this.hasAchievement("5CoursesCompleted")
-  ) {
-    newAchievements.push({
+      condition: () => this.totalLessonsCompleted >= 50,
+    },
+    {
       type: "5CoursesCompleted",
-      achievedDate: new Date(),
-    });
-  }
+      condition: () => this.totalCoursesCompleted >= 5,
+    },
+    { type: "100StudyHours", condition: () => this.totalStudyHours >= 100 },
+  ];
 
-  if (this.totalStudyHours >= 100 && !this.hasAchievement("100StudyHours")) {
-    newAchievements.push({ type: "100StudyHours", achievedDate: new Date() });
-  }
+  const newAchievements = achievementTypes
+    .filter(({ type, condition }) => condition() && !this.hasAchievement(type))
+    .map(({ type }) => ({ type, achievedDate: new Date() }));
 
   this.achievements.push(...newAchievements);
 };
@@ -180,6 +174,47 @@ streakSchema.statics.getOrCreateStreak = async function (userId) {
     await streak.save();
   }
   return streak;
+};
+
+// Add these methods to your streakSchema.methods in the Streak model file
+
+streakSchema.methods.getCurrentTwoWeekPeriod = function () {
+  const joinDate = moment(this.createdAt).startOf("day");
+  const today = moment().startOf("day");
+
+  // Start the period from the join date
+  let periodStart = moment(joinDate);
+
+  // If more than 2 weeks have passed since joining, move the start date forward in 2-week increments
+  while (periodStart.clone().add(2, "weeks").isBefore(today)) {
+    periodStart.add(2, "weeks");
+  }
+
+  const periodEnd = periodStart.clone().add(13, "days").endOf("day");
+
+  return { start: periodStart.toDate(), end: periodEnd.toDate() };
+};
+
+streakSchema.methods.getTwoWeeksData = function (startDate, endDate) {
+  const twoWeeksData = [];
+  const start = moment(startDate);
+  const end = moment(endDate);
+
+  for (let date = start.clone(); date.isSameOrBefore(end); date.add(1, "day")) {
+    const activity = this.dailyActivities.find((a) =>
+      moment(a.date).isSame(date, "day")
+    );
+
+    twoWeeksData.push({
+      date: date.format("YYYY-MM-DD"),
+      hasActivity: !!activity,
+      lessonsCompleted: activity ? activity.lessonsCompleted : 0,
+      coursesCompleted: activity ? activity.coursesCompleted : 0,
+      studyHours: activity ? activity.studyHours : 0,
+    });
+  }
+
+  return twoWeeksData;
 };
 
 module.exports = mongoose.model("Streak", streakSchema);
