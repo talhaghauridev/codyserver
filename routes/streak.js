@@ -1,4 +1,3 @@
-// streakController.js
 const isAuthenticated = require("../middlewares/auth");
 const Streak = require("../models/streak");
 const express = require("express");
@@ -70,6 +69,33 @@ router.get("/current-two-weeks-streak", isAuthenticated, async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Error fetching current two weeks streak data",
+      error: error.message,
+    });
+  }
+});
+
+router.get("/yearly-streak", isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const streak = await Streak.getOrCreateStreak(userId);
+
+    const currentYear = parseInt(req.query.year) || moment().year();
+    const yearlyStreakData = streak.getYearlyStreakData(currentYear);
+    const hasPreviousYearData = streak.hasPreviousYearData(currentYear);
+
+    res.json({
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+      totalLessonsCompleted: streak.totalLessonsCompleted,
+      totalCoursesCompleted: streak.totalCoursesCompleted,
+      totalStudyHours: streak.totalStudyHours,
+      year: currentYear,
+      hasPreviousYearData,
+      yearlyStreakData: yearlyStreakData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching yearly streak data",
       error: error.message,
     });
   }

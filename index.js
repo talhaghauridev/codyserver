@@ -13,6 +13,7 @@ const certificateRoutes = require("./routes/certificate");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const streak = require("./models/streak");
+const User = require("./models/userModel");
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -56,6 +57,7 @@ app.use((err, req, res, next) => {
 const PORT = 3001;
 app.listen(PORT, async () => {
   // await streak.deleteMany();
+  // await User.deleteMany();
   console.log(`Server is running on port ${PORT}`);
 });
 

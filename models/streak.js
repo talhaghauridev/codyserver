@@ -217,4 +217,76 @@ streakSchema.methods.getTwoWeeksData = function (startDate, endDate) {
   return twoWeeksData;
 };
 
+streakSchema.methods.getYearlyStreakData = function (year = null) {
+  const joinDate = moment(this.createdAt).startOf("day");
+  const today = moment().startOf("day");
+  const targetYear = year || today.year();
+  const startOfYear = moment(`${targetYear}-01-01`).startOf("year");
+  const endOfYear = moment(`${targetYear}-12-31`).endOf("year");
+
+  const monthlyData = [];
+
+  for (let month = 0; month < 12; month++) {
+    const currentMonth = moment(startOfYear).add(month, "months");
+    const monthStart = currentMonth.clone().startOf("month");
+    const monthEnd = currentMonth.clone().endOf("month");
+
+    const dailyData = [];
+
+    for (let day = 1; day <= currentMonth.daysInMonth(); day++) {
+      const currentDate = moment(
+        `${targetYear}-${month + 1}-${day}`,
+        "YYYY-MM-DD"
+      );
+
+      if (
+        currentDate.isSameOrAfter(joinDate) &&
+        currentDate.isSameOrBefore(today)
+      ) {
+        const activity = this.dailyActivities.find((a) =>
+          moment(a.date).isSame(currentDate, "day")
+        );
+
+        dailyData.push({
+          date: currentDate.format("YYYY-MM-DD"),
+          hasActivity: !!activity,
+          lessonsCompleted: activity ? activity.lessonsCompleted : 0,
+          coursesCompleted: activity ? activity.coursesCompleted : 0,
+          studyHours: activity ? activity.studyHours : 0,
+        });
+      }
+    }
+
+    const activeDays = dailyData.filter((day) => day.hasActivity).length;
+
+    monthlyData.push({
+      month: currentMonth.format("YYYY-MM"),
+      activeDays,
+      totalDays: currentMonth.daysInMonth(),
+      lessonsCompleted: dailyData.reduce(
+        (sum, day) => sum + day.lessonsCompleted,
+        0
+      ),
+      coursesCompleted: dailyData.reduce(
+        (sum, day) => sum + day.coursesCompleted,
+        0
+      ),
+      studyHours: dailyData.reduce((sum, day) => sum + day.studyHours, 0),
+      dailyData,
+    });
+  }
+
+  return monthlyData;
+};
+
+streakSchema.methods.hasPreviousYearData = function (currentYear) {
+  const previousYear = currentYear - 1;
+  const firstDayOfPreviousYear = moment(`${previousYear}-01-01`).startOf("day");
+  return this.dailyActivities.some(
+    (activity) =>
+      moment(activity.date).isSameOrAfter(firstDayOfPreviousYear) &&
+      moment(activity.date).isBefore(`${currentYear}-01-01`)
+  );
+};
+
 module.exports = mongoose.model("Streak", streakSchema);

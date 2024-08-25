@@ -11,7 +11,7 @@ const isAuthenticated = async (req, res, next) => {
 
     const token = authToken.split(" ")[1];
 
-    const decoded = jwt.verify(token, "ferer34");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id);
 
     if (!req.user) {

@@ -8,33 +8,50 @@ const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const ErrorHandler = require("../utils/ErrorHandler");
 const isAuthenticated = require("../middlewares/auth");
+const { AvailableLoginProviders, LoginProviders } = require("../constants");
+const { sendEmail } = require("../utils/sendMail");
+const jwt = require("jsonwebtoken");
+router.post(
+  "/signup",
+  asyncErrorHandler(async (req, res, next) => {
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return next(new ErrorHandler("Please Enter all fields", 400));
+    }
 
-// Regis
-router.post("/signup", async (req, res, next) => {
-  const { email, password, name } = req.body;
-  if (!email || !password || !name) {
-    return next(new ErrorHandler("Please Enter all fields", 400));
-  }
-  try {
     // Check if the email is already in use
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return next(new ErrorHandler("Email is already in use", 401));
     }
 
-    // If no user with the email exists, create a new user
-    const user = await User.create({
+    // Create new user
+    const user = new User({
       email,
       password,
       name,
     });
 
-    // Implement sendToken function or adjust as needed
-    sendToken(user, 201, res);
-  } catch (error) {
-    throw new ErrorHandler(error.message, 500);
-  }
-});
+    // Generate OTP
+    const otp = user.generateOTP();
+    const otpToken = user.generateOTPToken();
+    // Save user with OTP
+    await user.save({ validateBeforeSave: false });
+
+    // Send OTP email
+    await sendEmail({
+      email: user.email,
+      subject: "Verify your email",
+      message: `Your verification code is ${otp}. It will expire in 10 minutes.`,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully. Please verify your email.",
+      otpToken,
+    });
+  })
+);
 
 router.post("/login", async (req, res, next) => {
   const { email, password } = req.body;
@@ -55,6 +72,9 @@ router.post("/login", async (req, res, next) => {
     return next(new ErrorHandler("Invalid Email or Password", 401));
   }
 
+  if (!user.isVerified) {
+    throw new ErrorResponse("Please verify your email to login", 403);
+  }
   // Generate JWT token first
   const token = user.getJWTToken();
 
@@ -66,6 +86,147 @@ router.post("/login", async (req, res, next) => {
     success: true,
     token,
     user: userObj,
+    message: "Login Successfully",
+
+  });
+});
+
+// Verify OTP
+router.post(
+  "/verify-otp",
+  asyncErrorHandler(async (req, res, next) => {
+    const { otp, token } = req.body;
+
+    if (!otp || !token) {
+      throw new ErrorResponse("Please provide OTP and token", 400);
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("+otp +otpExpire");
+
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
+    if (user.isVerified) {
+      return next(new ErrorHandler("User is already verified", 400));
+    }
+    // Check if OTP is expired
+    if (user.otpExpire < Date.now()) {
+      return next(new ErrorHandler("OTP has expired", 400));
+    }
+
+    if (!user.verifyOTP(otp)) {
+      return next(new ErrorHandler("Invalid OTP", 400));
+    }
+
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpire = undefined;
+
+    await user.save({ validateBeforeSave: false });
+    const userToken = user.getJWTToken();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfull Verified`,
+      user,
+      token: userToken,
+    });
+  })
+);
+
+router.post(
+  "/request-otp",
+  asyncErrorHandler(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new ErrorResponse("Please provide an email address", 400);
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new ErrorResponse("User not found", 404);
+    }
+
+    if (user.isVerified) {
+      throw new ErrorResponse("User is already verified", 400);
+    }
+
+    const otp = user.generateOTP();
+    await user.save({ validateBeforeSave: false });
+
+    // Send OTP via email
+    await sendEmail({
+      to: user.email,
+      subject: "Verify your email",
+      text: `Your verification code is ${otp}. It will expire in 10 minutes.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+    });
+  })
+);
+router.post(
+  "/social-login",
+  asyncErrorHandler(async (req, res, next) => {
+    const { name, email, provider, providerId } = req.body;
+
+    if (!name || !email || !provider || !providerId) {
+      return next(new ErrorHandler("Please provide all required fields", 400));
+    }
+
+    const mappedProvider = LoginProviders[provider];
+    if (!mappedProvider) {
+      return next(new ErrorHandler("Invalid provider", 400));
+    }
+
+    let user = await User.findOne({ email });
+
+    if (user) {
+      if (user.provider !== mappedProvider) {
+        return next(
+          new ErrorHandler(
+            `Account exists with different provider: ${user.provider}`,
+            400
+          )
+        );
+      }
+
+      if (user.providerId !== providerId) {
+        return next(new ErrorHandler("Authentication failed", 401));
+      }
+    } else {
+      user = new User({
+        name,
+        email,
+        provider: mappedProvider,
+        providerId,
+        password: Math.random(),
+        isVerified: true,
+      });
+    }
+
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    const token = user.getJWTToken();
+
+    res.status(200).json({
+      success: true,
+      message: `Login with ${mappedProvider} successful`,
+      user,
+      token,
+    });
+  })
+);
+
+router.get("/me", isAuthenticated, async (req, res) => {
+  res.status(200).json({
+    success: true,
+    user: req.user,
   });
 });
 
@@ -291,111 +452,5 @@ router.patch("/change-password", isAuthenticated, async (req, res, next) => {
     message: "Password Updated Successfully",
   });
 });
-
-// // Logout User
-// exports.logoutUser = asyncErrorHandler(async (req, res, next) => {
-//     res.cookie("token", null, {
-//         expires: new Date(Date.now()),
-//         httpOnly: true,
-//     });
-
-//     res.status(200).json({
-//         success: true,
-//         message: "Logged Out",
-//     });
-// });
-
-// // Get User Details
-// exports.getUserDetails = asyncErrorHandler(async (req, res, next) => {
-
-//     const user = await User.findById(req.user.id);
-
-//     res.status(200).json({
-//         success: true,
-//         user,
-//     });
-// });
-
-// // Forgot Password
-// exports.forgotPassword = asyncErrorHandler(async (req, res, next) => {
-
-//     const user = await User.findOne({ email: req.body.email });
-
-//     if (!user) {
-//         return next(new ErrorHandler("User Not Found", 404));
-//     }
-
-//     const resetToken = await user.getResetPasswordToken();
-
-//     await user.save({ validateBeforeSave: false });
-
-//     // const resetPasswordUrl = `${req.protocol}://${req.get("host")}/password/reset/${resetToken}`;
-//     const resetPasswordUrl = `https://${req.get("host")}/password/reset/${resetToken}`;
-
-//     // const message = `Your password reset token is : \n\n ${resetPasswordUrl}`;
-
-//     try {
-//         await sendEmail({
-//             email: user.email,
-//             templateId: process.env.SENDGRID_RESET_TEMPLATEID,
-//             data: {
-//                 reset_url: resetPasswordUrl
-//             }
-//         });
-
-//         res.status(200).json({
-//             success: true,
-//             message: `Email sent to ${user.email} successfully`,
-//         });
-
-//     } catch (error) {
-//         user.resetPasswordToken = undefined;
-//         user.resetPasswordExpire = undefined;
-
-//         await user.save({ validateBeforeSave: false });
-//         return next(new ErrorHandler(error.message, 500))
-//     }
-// });
-
-// // Reset Password
-// exports.resetPassword = asyncErrorHandler(async (req, res, next) => {
-
-//     // create hash token
-//     const resetPasswordToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
-
-//     const user = await User.findOne({
-//         resetPasswordToken,
-//         resetPasswordExpire: { $gt: Date.now() }
-//     });
-
-//     if (!user) {
-//         return next(new ErrorHandler("Invalid reset password token", 404));
-//     }
-
-//     user.password = req.body.password;
-//     user.resetPasswordToken = undefined;
-//     user.resetPasswordExpire = undefined;
-
-//     await user.save();
-//     sendToken(user, 200, res);
-// });
-
-// // Update Password
-// exports.updatePassword = asyncErrorHandler(async (req, res, next) => {
-
-//     const user = await User.findById(req.user.id).select("+password");
-
-//     const isPasswordMatched = await user.comparePassword(req.body.oldPassword);
-
-//     if (!isPasswordMatched) {
-//         return next(new ErrorHandler("Old Password is Invalid", 400));
-//     }
-
-//     user.password = req.body.newPassword;
-//     await user.save();
-//     sendToken(user, 201, res);
-// });
-
-// // Update User Profile
 
 module.exports = router;
