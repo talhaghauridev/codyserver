@@ -8,9 +8,14 @@ const Course = require("../models/courseModel");
 const Lesson = require("../models/lessonModel");
 const ErrorHandler = require("../utils/ErrorHandler");
 const isAuthenticated = require("../middlewares/auth");
-const { AvailableLoginProviders, LoginProviders } = require("../constants");
+const {
+  AvailableLoginProviders,
+  LoginProviders,
+  OtpPorposes,
+} = require("../constants");
 const { sendEmail } = require("../utils/sendMail");
 const jwt = require("jsonwebtoken");
+
 router.post(
   "/signup",
   asyncErrorHandler(async (req, res, next) => {
@@ -19,30 +24,23 @@ router.post(
       return next(new ErrorHandler("Please Enter all fields", 400));
     }
 
-    // Check if the email is already in use
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return next(new ErrorHandler("Email is already in use", 401));
     }
 
-    // Create new user
-    const user = new User({
-      email,
-      password,
-      name,
-    });
-
-    // Generate OTP
-    const otp = user.generateOTP();
-    const otpToken = user.generateOTPToken();
-    // Save user with OTP
+    const user = new User({ email, password, name });
+    const otp = user.generateOTP(OtpPorposes.VERFICATIION);
     await user.save({ validateBeforeSave: false });
 
-    // Send OTP email
     await sendEmail({
       email: user.email,
       subject: "Verify your email",
       message: `Your verification code is ${otp}. It will expire in 10 minutes.`,
+    });
+
+    const otpToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
     });
 
     res.status(201).json({
@@ -73,7 +71,7 @@ router.post("/login", async (req, res, next) => {
   }
 
   if (!user.isVerified) {
-    throw new ErrorResponse("Please verify your email to login", 403);
+    throw new ErrorHandler("Please verify your email to login", 403);
   }
   // Generate JWT token first
   const token = user.getJWTToken();
@@ -87,7 +85,6 @@ router.post("/login", async (req, res, next) => {
     token,
     user: userObj,
     message: "Login Successfully",
-
   });
 });
 
@@ -98,37 +95,32 @@ router.post(
     const { otp, token } = req.body;
 
     if (!otp || !token) {
-      throw new ErrorResponse("Please provide OTP and token", 400);
+      return next(new ErrorHandler("Please provide OTP and token", 400));
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select("+otp +otpExpire");
+    const user = await User.findById(decoded.id).select(
+      "+otp.code +otp.expiry +otpPurpose"
+    );
 
     if (!user) {
       return next(new ErrorHandler("User not found", 404));
     }
-    if (user.isVerified) {
-      return next(new ErrorHandler("User is already verified", 400));
-    }
-    // Check if OTP is expired
-    if (user.otpExpire < Date.now()) {
-      return next(new ErrorHandler("OTP has expired", 400));
-    }
 
-    if (!user.verifyOTP(otp)) {
-      return next(new ErrorHandler("Invalid OTP", 400));
+    if (!user.verifyOTP(otp, OtpPorposes.VERFICATIION)) {
+      return next(new ErrorHandler("Invalid or expired OTP", 400));
     }
 
     user.isVerified = true;
     user.otp = undefined;
-    user.otpExpire = undefined;
+    user.otpPurpose = undefined;
 
     await user.save({ validateBeforeSave: false });
     const userToken = user.getJWTToken();
 
     res.status(200).json({
       success: true,
-      message: `Successfull Verified`,
+      message: "Email verified successfully",
       user,
       token: userToken,
     });
@@ -153,7 +145,7 @@ router.post(
       throw new ErrorResponse("User is already verified", 400);
     }
 
-    const otp = user.generateOTP();
+    const otp = user.generateOTP(OtpPorposes.VERFICATIION);
     await user.save({ validateBeforeSave: false });
 
     // Send OTP via email
@@ -178,6 +170,9 @@ router.post(
       return next(new ErrorHandler("Please provide all required fields", 400));
     }
 
+    if (provider === LoginProviders.EMAIL_PASSWORD) {
+      return next(new ErrorHandler("Please Provide a social Provider"));
+    }
     const mappedProvider = LoginProviders[provider];
     if (!mappedProvider) {
       return next(new ErrorHandler("Invalid provider", 400));
@@ -229,6 +224,128 @@ router.get("/me", isAuthenticated, async (req, res) => {
     user: req.user,
   });
 });
+
+router.post(
+  "/forgot-password",
+  asyncErrorHandler(async (req, res, next) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return next(new ErrorHandler("Please provide an email address", 400));
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return next(new ErrorHandler("User not found with this email", 404));
+    }
+
+    const otp = user.generateOTP(OtpPorposes.PASSWORD_RESET);
+    await user.save({ validateBeforeSave: false });
+
+    const otpToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
+    });
+
+    const message = `Your password reset OTP is: ${otp}. It will expire in 10 minutes.`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "Password Reset Request",
+        message,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Password reset OTP sent successfully",
+        token: otpToken,
+      });
+    } catch (error) {
+      user.otp = undefined;
+      user.otpPurpose = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      return next(new ErrorHandler("Email could not be sent", 500));
+    }
+  })
+);
+
+// Verify OTP Route
+router.post(
+  "/verify-reset-otp",
+  asyncErrorHandler(async (req, res, next) => {
+    const { otp, token } = req.body;
+
+    if (!otp || !token) {
+      return next(new ErrorHandler("OTP and token are required", 400));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return next(new ErrorHandler("Invalid or expired token", 401));
+    }
+
+    const user = await User.findById(decoded.id).select(
+      "+otp.code +otp.expiry +otpPurpose"
+    );
+
+    if (!user || !user.verifyOTP(otp, OtpPorposes.PASSWORD_RESET)) {
+      return next(new ErrorHandler("Invalid or expired OTP", 400));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+    });
+  })
+);
+
+// Reset Password Route
+router.post(
+  "/reset-password",
+  asyncErrorHandler(async (req, res, next) => {
+    const { token, password, confirmPassword } = req.body;
+
+    if (!token || !password) {
+      return next(
+        new ErrorHandler("Insufficient information for password reset", 400)
+      );
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return next(new ErrorHandler("Invalid or expired token", 401));
+    }
+
+    const user = await User.findById(decoded.id).select(
+      "+otp.code +otp.expiry +otpPurpose"
+    );
+
+    if (!user) {
+      return next(new ErrorHandler("Invalid or expired OTP", 400));
+    }
+    if (password !== confirmPassword) {
+      return next(new ErrorHandler("Passwords do not match", 400));
+    }
+    // Set new password
+    user.password = password;
+    user.otp = undefined;
+    user.otpExpire = undefined;
+    user.otpPurpose = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // Send JWT token for automatic login
+    res.status(200).json({
+      success: true,
+      message: "Reset Password successfully",
+    });
+  })
+);
 
 router.get(
   "/user/:userId/enrolled-courses",
@@ -394,14 +511,14 @@ router.get(
 
 router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
   const { email, name } = req.body;
-  if (!email || !name) {
-    return next(new ErrorHandler("Please fill all fields", 400));
-  }
-  const newUserData = {
-    name,
-    email,
-  };
 
+  const newUserData = {};
+  if (email) {
+    newUserData.email = email;
+  }
+  if (name) {
+    newUserData.name = name;
+  }
   // if (req.body.avatar !== "") {
   //     const user = await User.findById(req.user.id);
 
@@ -420,8 +537,9 @@ router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
   //         url: myCloud.secure_url,
   //     }
   // }
+  console.log(newUserData);
 
-  await User.findByIdAndUpdate(req.user.id, newUserData, {
+  await User.findByIdAndUpdate(req.user._id, newUserData, {
     runValidators: false,
   });
 

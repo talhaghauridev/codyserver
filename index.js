@@ -57,7 +57,10 @@ app.use((err, req, res, next) => {
 const PORT = 3001;
 app.listen(PORT, async () => {
   // await streak.deleteMany();
+  // const users = await User.find().select("+otp.code +otp.expiry +otpPurpose");
+  // console.log({ user: JSON.parse(JSON.stringify(users, null, 4)) });
   // await User.deleteMany();
+
   console.log(`Server is running on port ${PORT}`);
 });
 

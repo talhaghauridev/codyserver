@@ -8,6 +8,7 @@ const {
   LoginProviders,
   AvailableUserRoles,
   UserRoles,
+  AvailableOtpPurposes,
 } = require("../constants");
 
 const userSchema = new mongoose.Schema(
@@ -65,11 +66,12 @@ const userSchema = new mongoose.Schema(
       },
     ],
     otp: {
-      type: String,
-      select: false,
+      code: { type: String, select: false },
+      expiry: { type: Date, select: false },
     },
-    otpExpire: {
-      type: Date,
+    otpPurpose: {
+      type: String,
+      enum: AvailableOtpPurposes,
       select: false,
     },
     createdAt: {
@@ -130,17 +132,28 @@ userSchema.methods.getResetPasswordToken = function () {
   return resetToken;
 };
 
-// Generate OTP
-userSchema.methods.generateOTP = function () {
+userSchema.methods.generateOTP = function (purpose) {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  this.otp = crypto.createHash("sha256").update(otp).digest("hex");
-  this.otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+  this.otp = {
+    code: crypto.createHash("sha256").update(otp).digest("hex"),
+    expiry: Date.now() + 10 * 60 * 1000, // 10 minutes
+  };
+  this.otpPurpose = purpose;
   return otp;
 };
 
-userSchema.methods.verifyOTP = function (otp) {
+userSchema.methods.verifyOTP = function (otp, purpose) {
   const hashedOTP = crypto.createHash("sha256").update(otp).digest("hex");
-  return this.otp === hashedOTP;
+  return (
+    this.otp.code === hashedOTP &&
+    this.otp.expiry > Date.now() &&
+    this.otpPurpose === purpose
+  );
+};
+
+userSchema.methods.clearOTP = function () {
+  this.otp = undefined;
+  this.otpPurpose = undefined;
 };
 
 module.exports = mongoose.model("User", userSchema);

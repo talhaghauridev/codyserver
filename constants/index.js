@@ -11,6 +11,12 @@ const LoginProviders = Object.freeze({
   GITHUB: "GITHUB",
 });
 
+const OtpPorposes = Object.freeze({
+  VERFICATIION: "VERFICATIION",
+  PASSWORD_RESET: "PASSWORD_RESET",
+});
+
+const AvailableOtpPurposes = Object.freeze(Object.values(OtpPorposes));
 const AvailableUserRoles = Object.freeze(Object.values(UserRoles));
 const AvailableLoginProviders = Object.freeze(Object.values(LoginProviders));
 
@@ -21,8 +27,10 @@ const isValidLoginProvider = (provider) =>
 module.exports = {
   UserRoles,
   LoginProviders,
+  OtpPorposes,
   AvailableUserRoles,
   AvailableLoginProviders,
+  AvailableOtpPurposes,
   isValidUserRole,
   isValidLoginProvider,
 };
