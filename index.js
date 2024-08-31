@@ -10,6 +10,10 @@ const topicRoutes = require("./routes/topic");
 const quizRoutes = require("./routes/question");
 const streakRoutes = require("./routes/streak");
 const certificateRoutes = require("./routes/certificate");
+const coursev2 = require("./routes/v2/courses");
+const categoryv2 = require("./routes/v2/category");
+const topicsv2 = require("./routes/v2/topics");
+const lessonsv2 = require("./routes/v2/lessons");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const streak = require("./models/streak");
@@ -43,6 +47,7 @@ app.use("/", topicRoutes);
 app.use("/", quizRoutes);
 app.use("/certificate", certificateRoutes);
 app.use("/", streakRoutes);
+app.use("/api/v2", coursev2, categoryv2, topicsv2, lessonsv2);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
@@ -60,6 +65,10 @@ app.listen(PORT, async () => {
   // const users = await User.find().select("+otp.code +otp.expiry +otpPurpose");
   // console.log({ user: JSON.parse(JSON.stringify(users, null, 4)) });
   // await User.deleteMany();
+  // await Category.deleteMany();
+  // const course = await courseModel.find({ status: "published" });
+  // console.log(course.length);
+  // await courseModel.updateMany({ status: "published" });
 
   console.log(`Server is running on port ${PORT}`);
 });
@@ -85,6 +94,8 @@ const insertDummyDataForDate = async (streak, date) => {
 };
 const Streak = require("./models/streak");
 const moment = require("moment");
+const Course = require("./models/courseModel");
+const Category = require("./models/category");
 // Main function to insert dummy data
 const insertDummyData = async () => {
   try {

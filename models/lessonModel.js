@@ -21,32 +21,38 @@ const contentBlockSchema = new mongoose.Schema({
   language: String,
   code: String,
 });
-
-const lessonSchema = new mongoose.Schema({
-  courseId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Course",
-    required: true,
-  },
-  topicId: {
-    type: String,
-    required: true,
-  },
-  title: String,
-  duration: {
-    type: Number,
-    default: 0,
-  },
-  content: {
-    type: String,
-    required: true,
-  },
-  quiz: [
-    {
+const lessonSchema = new mongoose.Schema(
+  {
+    topic: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Question",
+      ref: "Topic",
+      required: [true, "A lesson must belong to a topic"],
+      index: true,
     },
-  ],
-});
+    title: {
+      type: String,
+      required: [true, "A lesson must have a title"],
+      trim: true,
+      maxlength: [100, "A lesson title must be less than 100 characters"],
+    },
+    duration: {
+      type: Number,
+      default: 0,
+    },
+    content: {
+      type: String,
+      required: [true, "A lesson must have content"],
+    },
+    quiz: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Question",
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
 
 module.exports = mongoose.model("Lesson", lessonSchema);
