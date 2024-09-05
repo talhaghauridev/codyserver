@@ -69,7 +69,7 @@ app.listen(PORT, async () => {
   // const course = await courseModel.find({ status: "published" });
   // console.log(course.length);
   // await courseModel.updateMany({ status: "published" });
-
+  // await EnrolledCourse.deleteMany();
   console.log(`Server is running on port ${PORT}`);
 });
 
@@ -96,6 +96,7 @@ const Streak = require("./models/streak");
 const moment = require("moment");
 const Course = require("./models/courseModel");
 const Category = require("./models/category");
+const EnrolledCourse = require("./models/enrolledCourse");
 // Main function to insert dummy data
 const insertDummyData = async () => {
   try {

@@ -7,6 +7,9 @@ const { default: mongoose } = require("mongoose");
 const Category = require("../../models/category");
 const Topic = require("../../models/topic");
 const Lesson = require("../../models/lessonModel");
+const EnrolledCourse = require("../../models/enrolledCourse");
+const isAuthenticated = require("../../middlewares/auth");
+const userModel = require("../../models/userModel");
 
 const populateFields = (query, fields) => {
   if (fields.includes("topics")) {
@@ -275,6 +278,208 @@ router.patch(
   })
 );
 
+router.post(
+  "/courses/:courseId/enroll",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const courseId = req.params.courseId;
+    const userId = req.user.id;
+    console.log({ courseId, userId });
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+
+    const alreadyEnrolled = await EnrolledCourse.findOne({
+      user: userId,
+      course: courseId,
+    });
+    if (alreadyEnrolled) {
+      return next(
+        new ErrorHandler("You are already enrolled in this course", 400)
+      );
+    }
+
+    const enrolledCourse = await EnrolledCourse.create({
+      user: userId,
+      course: courseId,
+    });
+
+    await Promise.all([
+      userModel.findByIdAndUpdate(userId, {
+        $push: { enrolledCourses: enrolledCourse._id },
+      }),
+      Course.findByIdAndUpdate(courseId, {
+        $inc: { studentsEnrolled: 1 },
+      }),
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: "Enrolled in course successfully",
+    });
+  })
+);
+
+router.get(
+  "/enrolled-courses",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const enrolledCourses = await EnrolledCourse.find({ user: userId })
+      .populate({
+        path: "course",
+        select: "title description coverImage logo difficulty",
+      })
+      .sort("-createdAt");
+
+    if (!enrolledCourses) {
+      return next(new ErrorHandler("No enrolled courses found", 404));
+    }
+
+    const formattedEnrolledCourses = enrolledCourses.map((enrollment) => ({
+      _id: enrollment._id,
+      course: enrollment.course,
+      progress: enrollment.progress,
+      enrolledAt: enrollment.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedEnrolledCourses.length,
+      data: formattedEnrolledCourses,
+    });
+  })
+);
+
+router.patch(
+  "/courses/:courseId/lessons/:lessonId/complete",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const { courseId, lessonId } = req.params;
+    const userId = req.user.id;
+
+    const enrolledCourse = await EnrolledCourse.findOne({
+      user: userId,
+      course: courseId,
+    });
+
+    if (!enrolledCourse) {
+      return next(new ErrorHandler("You are not enrolled in this course", 404));
+    }
+
+    const lessonIndex = enrolledCourse.lessonsCompleted.findIndex(
+      (lesson) => lesson.lesson.toString() === lessonId
+    );
+
+    if (lessonIndex === -1) {
+      return next(new ErrorHandler("Lesson not found in this course", 404));
+    }
+
+    // Mark the current lesson as completed
+    enrolledCourse.lessonsCompleted[lessonIndex].completed = true;
+    enrolledCourse.lessonsCompleted[lessonIndex].progress = 100;
+
+    // Find the next lesson and mark it as accessible
+    const course = await Course.findById(courseId).populate("topics");
+    const allLessons = (
+      await Promise.all(
+        course.topics.map(async (topic) => {
+          return await Lesson.find({ topic: topic._id }).sort("createdAt");
+        })
+      )
+    ).flat();
+
+    const currentLessonIndex = allLessons.findIndex(
+      (lesson) => lesson._id.toString() === lessonId
+    );
+    if (currentLessonIndex < allLessons.length - 1) {
+      const nextLesson = allLessons[currentLessonIndex + 1];
+      const nextLessonIndex = enrolledCourse.lessonsCompleted.findIndex(
+        (lesson) => lesson.lesson.toString() === nextLesson._id.toString()
+      );
+
+      if (nextLessonIndex === -1) {
+        enrolledCourse.lessonsCompleted.push({
+          lesson: nextLesson._id,
+          completed: false,
+          progress: 0,
+          isAccessible: true,
+        });
+      } else {
+        enrolledCourse.lessonsCompleted[nextLessonIndex].isAccessible = true;
+      }
+    }
+
+    await enrolledCourse.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Lesson completed and next lesson unlocked",
+      data: enrolledCourse.lessonsCompleted,
+    });
+  })
+);
+
+router.patch(
+  "/update-lesson-progress",
+  asyncHandler(async (req, res, next) => {
+    const { courseId, lessonId, completed, progress } = req.body;
+    const userId = req.user.id;
+
+    const enrolledCourse = await EnrolledCourse.findOne({
+      user: userId,
+      course: courseId,
+    });
+    if (!enrolledCourse) {
+      return next(new ErrorHandler("You are not enrolled in this course", 404));
+    }
+
+    let lessonIndex = enrolledCourse.lessonsCompleted.findIndex(
+      (lesson) => lesson.lesson.toString() === lessonId
+    );
+
+    if (lessonIndex === -1) {
+      enrolledCourse.lessonsCompleted.push({
+        lesson: lessonId,
+        completed,
+        progress,
+        lastAccessDate: Date.now(),
+      });
+    } else {
+      enrolledCourse.lessonsCompleted[lessonIndex] = {
+        ...enrolledCourse.lessonsCompleted[lessonIndex],
+        completed,
+        progress,
+        lastAccessDate: Date.now(),
+      };
+    }
+
+    // Calculate overall course progress
+    const course = await Course.findById(courseId).populate("topics");
+    const totalLessons = course.topics.reduce(
+      (acc, topic) => acc + topic.lessons.length,
+      0
+    );
+    const completedLessons = enrolledCourse.lessonsCompleted.filter(
+      (lesson) => lesson.completed
+    ).length;
+    enrolledCourse.progress = (completedLessons / totalLessons) * 100;
+
+    if (enrolledCourse.progress === 100) {
+      enrolledCourse.completionDate = Date.now();
+    }
+
+    await enrolledCourse.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Lesson progress updated successfully",
+    });
+  })
+);
 // Create a new topic for a course
 router.post(
   "/courses/:courseId/topics",
@@ -320,6 +525,91 @@ router.get(
     res.status(200).json({
       success: true,
       topics,
+    });
+  })
+);
+
+router.put(
+  "/courses/:id",
+  asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const { title, description, difficulty, tags, category, coverImage, logo } =
+      req.body;
+
+    if (!id) {
+      return next(new ErrorHandler("Please provide the course id", 400));
+    }
+
+    const course = await Course.findById(id);
+
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+
+    // Update fields if provided
+    if (title) course.title = title;
+    if (description) course.description = description;
+    if (difficulty) course.difficulty = difficulty;
+    if (tags) course.tags = tags;
+    if (category !== course.category._id.toString()) {
+      const oldCategory = course.category;
+      course.category = category;
+
+      // Update category course counts
+      await Category.findByIdAndUpdate(oldCategory, {
+        $inc: { courseCount: -1 },
+      });
+      await Category.findByIdAndUpdate(category, { $inc: { courseCount: 1 } });
+    }
+    if (coverImage) course.coverImage = coverImage;
+    if (logo) course.logo = logo;
+
+    await course.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Course updated successfully",
+      data: course,
+    });
+  })
+);
+
+// Delete course
+router.delete(
+  "/courses/:id",
+  asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+
+    if (!id) {
+      return next(new ErrorHandler("Please provide the course id", 400));
+    }
+
+    const course = await Course.findById(id);
+
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+
+    // Remove course from category
+    await Category.findByIdAndUpdate(course.category, {
+      $inc: { courseCount: -1 },
+    });
+
+    // Delete associated topics and lessons
+    const topics = await Topic.find({ courseId: id });
+    if (topics.length > 0) {
+      for (let topic of topics) {
+        await Lesson.deleteMany({ topic: topic._id });
+      }
+      await Topic.deleteMany({ courseId: id });
+    }
+
+    // Delete the course
+    await Course.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: "Course and associated data deleted successfully",
     });
   })
 );

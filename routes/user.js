@@ -73,17 +73,14 @@ router.post("/login", async (req, res, next) => {
   if (!user.isVerified) {
     throw new ErrorHandler("Please verify your email to login", 403);
   }
-  // Generate JWT token first
   const token = user.getJWTToken();
 
-  // Convert user to JSON object
-  const userObj = user.toObject();
+ const loggedInUser = await User.findById(user._id)
 
-  // Send token and userObj
   res.status(201).json({
     success: true,
     token,
-    user: userObj,
+    user: loggedInUser,
     message: "Login Successfully",
   });
 });

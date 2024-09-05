@@ -6,7 +6,6 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
@@ -19,7 +18,6 @@ const courseSchema = new mongoose.Schema(
     },
     logo: {
       type: String,
-
       default: "https://www.learn-js.org/static/img/favicons/learn-js.org.ico",
     },
     certificate: {
@@ -54,7 +52,6 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: [true, "A course must have a description"],
     },
-    tags: [String],
     topics: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -73,6 +70,17 @@ const courseSchema = new mongoose.Schema(
       default: "draft",
     },
     publishedAt: Date,
+    // New fields for overall rating
+    overallRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    numberOfRatings: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -83,6 +91,51 @@ courseSchema.index({ category: 1 });
 courseSchema.index({ tags: 1 });
 courseSchema.index({ status: 1, publishedAt: -1 });
 courseSchema.index({ title: "text", description: "text", tags: "text" });
+
+// Method to update the overall rating
+courseSchema.methods.updateOverallRating = async function (newRating) {
+  this.overallRating =
+    (this.overallRating * this.numberOfRatings + newRating) /
+    (this.numberOfRatings + 1);
+  this.numberOfRatings += 1;
+  await this.save();
+};
+
+// Static method to calculate and update the overall rating
+courseSchema.statics.calculateAverageRating = async function (courseId) {
+  const stats = await this.aggregate([
+    { $match: { _id: courseId } },
+    {
+      $lookup: {
+        from: "reviews",
+        localField: "reviews",
+        foreignField: "_id",
+        as: "reviewsData",
+      },
+    },
+    { $unwind: "$reviewsData" },
+    {
+      $group: {
+        _id: "$_id",
+        averageRating: { $avg: "$reviewsData.rating" },
+        numberOfRatings: { $sum: 1 },
+      },
+    },
+  ]);
+
+  if (stats.length > 0) {
+    await this.findByIdAndUpdate(courseId, {
+      overallRating: stats[0].averageRating,
+      numberOfRatings: stats[0].numberOfRatings,
+    });
+  } else {
+    await this.findByIdAndUpdate(courseId, {
+      overallRating: 0,
+      numberOfRatings: 0,
+    });
+  }
+};
+
 const Course = mongoose.model("Course", courseSchema);
 
 module.exports = Course;

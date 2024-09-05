@@ -53,17 +53,7 @@ const userSchema = new mongoose.Schema(
       sparse: true,
     },
     enrolledCourses: [
-      {
-        courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
-        progress: { type: Number, default: 0 },
-        lessonsCompleted: [
-          {
-            lessonId: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
-            completed: { type: Boolean, default: false },
-            progress: { type: Number, default: 0 },
-          },
-        ],
-      },
+      { type: mongoose.Schema.Types.ObjectId, ref: "EnrolledCourse" },
     ],
     otp: {
       code: { type: String, select: false },
