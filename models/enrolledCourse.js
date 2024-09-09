@@ -1,4 +1,4 @@
-const { default: mongoose } = require("mongoose");
+const mongoose = require("mongoose");
 
 const enrolledCourseSchema = new mongoose.Schema(
   {
@@ -13,7 +13,11 @@ const enrolledCourseSchema = new mongoose.Schema(
     completionDate: { type: Date },
     lessonsCompleted: [
       {
-        lesson: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
+        lesson: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Lesson",
+          required: true,
+        },
         completed: { type: Boolean, default: false },
         progress: { type: Number, default: 0 },
         lastAccessDate: { type: Date },

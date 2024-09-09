@@ -31,6 +31,7 @@ router.get("/courses/:id", async (req, res) => {
     res.status(500).send(error);
   }
 });
+
 router.get("/course/:userId/:courseId", async (req, res) => {
   try {
     // Find the user by ID
@@ -96,6 +97,7 @@ router.get("/course/:userId/:courseId", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 router.get("/popular-courses", async (req, res) => {
   try {
     const popularCourses = await Course.aggregate([

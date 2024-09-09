@@ -124,7 +124,7 @@ router.get(
   })
 );
 
-router.get("/courses/:id", async (req, res, next) => {
+router.get("/courses-detials/:id", async (req, res, next) => {
   try {
     const { fields } = req.body;
     let query;
@@ -155,6 +155,118 @@ router.get("/courses/:id", async (req, res, next) => {
   }
 });
 
+router.get(
+  "/courses/:courseId",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const { courseId } = req.params;
+    const userId = req.user._id;
+
+    // Find the course and populate topics and lessons
+    const course = await Course.findById(courseId)
+      .populate([
+        {
+          path: "topics",
+          populate: {
+            path: "lessons",
+            model: "Lesson",
+            select: "title duration",
+          },
+        },
+        {
+          path: "category",
+        },
+      ])
+      .lean();
+
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+
+    // Find the enrolled course for this user
+    const enrolledCourse = await EnrolledCourse.findOne({
+      user: userId,
+      course: courseId,
+    }).lean();
+
+    const certificate = false; // Placeholder for certificate logic
+    let isEnrolled = false;
+    let overallProgress = 0;
+    let accessibleLessons = [];
+    let isFirstLessonMarked = false; // Flag to track if we've marked the first lesson
+
+    if (enrolledCourse) {
+      isEnrolled = true;
+      overallProgress = enrolledCourse.progress || 0;
+
+      // Create a map of completed lessons for quick lookup
+      const completedLessonsMap = new Map(
+        (enrolledCourse.lessonsCompleted || []).map((lc) => [
+          lc.lesson ? lc.lesson.toString() : null,
+          lc,
+        ])
+      );
+
+      // Process topics and lessons
+      course.topics = (course.topics || []).map((topic, topicIndex) => {
+        topic.lessons = (topic.lessons || []).map((lesson, lessonIndex) => {
+          const lessonId = lesson._id ? lesson._id.toString() : null;
+          const completionInfo = lessonId
+            ? completedLessonsMap.get(lessonId)
+            : null;
+
+          // Determine if the lesson is accessible
+          let isAccessible = false;
+
+          if (!isFirstLessonMarked && topicIndex === 0 && lessonIndex === 0) {
+            // First lesson of the first topic
+            isAccessible = true;
+            isFirstLessonMarked = true;
+          } else if (lessonIndex > 0) {
+            // Check if the previous lesson in this topic is completed
+            const prevLessonId = topic.lessons[lessonIndex - 1]._id.toString();
+            isAccessible =
+              completedLessonsMap.get(prevLessonId)?.completed || false;
+          } else if (topicIndex > 0) {
+            // First lesson of a new topic, check if the last lesson of the previous topic is completed
+            const prevTopic = course.topics[topicIndex - 1];
+            const lastLessonOfPrevTopic =
+              prevTopic.lessons[prevTopic.lessons.length - 1];
+            const lastLessonId = lastLessonOfPrevTopic._id.toString();
+            isAccessible =
+              completedLessonsMap.get(lastLessonId)?.completed || false;
+          }
+
+          if (isAccessible && lessonId) {
+            accessibleLessons.push(lessonId);
+          }
+
+          return {
+            ...lesson,
+            completed: completionInfo ? completionInfo.completed : false,
+            progress: completionInfo ? completionInfo.progress : 0,
+            isAccessible: isAccessible,
+          };
+        });
+        return topic;
+      });
+    }
+
+    // Prepare the response
+    const responseData = {
+      ...course,
+      enrolled: isEnrolled,
+      progress: overallProgress,
+      certificate: certificate,
+      accessibleLessons: accessibleLessons,
+    };
+
+    res.status(200).json({
+      success: true,
+      course: responseData,
+    });
+  })
+);
 router.get(
   "/admin-courses",
   asyncHandler(async (req, res, next) => {
@@ -282,11 +394,10 @@ router.post(
   "/courses/:courseId/enroll",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
-    const courseId = req.params.courseId;
-    const userId = req.user.id;
-    console.log({ courseId, userId });
+    const { courseId } = req.params;
+    const userId = req.user._id;
 
-    const course = await Course.findById(courseId);
+    const course = await Course.findById(courseId).populate("topics");
     if (!course) {
       return next(new ErrorHandler("Course not found", 404));
     }
@@ -301,9 +412,23 @@ router.post(
       );
     }
 
+    // Find the first lesson of the course
+    const firstTopic = course.topics[0];
+    const firstLesson = await Lesson.findOne({ topic: firstTopic._id }).sort(
+      "createdAt"
+    );
+
     const enrolledCourse = await EnrolledCourse.create({
       user: userId,
       course: courseId,
+      lessonsCompleted: [
+        {
+          lesson: firstLesson._id,
+          completed: false,
+          progress: 0,
+          lastAccessDate: new Date(),
+        },
+      ],
     });
 
     await Promise.all([
@@ -353,14 +478,14 @@ router.get(
     });
   })
 );
-
-router.patch(
+router.post(
   "/courses/:courseId/lessons/:lessonId/complete",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const { courseId, lessonId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
+    // Find the enrolled course
     const enrolledCourse = await EnrolledCourse.findOne({
       user: userId,
       course: courseId,
@@ -370,55 +495,57 @@ router.patch(
       return next(new ErrorHandler("You are not enrolled in this course", 404));
     }
 
+    // Find the lesson in the lessonsCompleted array
     const lessonIndex = enrolledCourse.lessonsCompleted.findIndex(
-      (lesson) => lesson.lesson.toString() === lessonId
+      (lesson) => lesson.lesson && lesson.lesson.toString() === lessonId
     );
 
     if (lessonIndex === -1) {
-      return next(new ErrorHandler("Lesson not found in this course", 404));
+      // If the lesson is not in the array, add it
+      enrolledCourse.lessonsCompleted.push({
+        lesson: lessonId,
+        completed: true,
+        progress: 100,
+        lastAccessDate: new Date(),
+      });
+    } else {
+      // If the lesson is already in the array, mark it as completed
+      enrolledCourse.lessonsCompleted[lessonIndex].completed = true;
+      enrolledCourse.lessonsCompleted[lessonIndex].progress = 100;
+      enrolledCourse.lessonsCompleted[lessonIndex].lastAccessDate = new Date();
     }
 
-    // Mark the current lesson as completed
-    enrolledCourse.lessonsCompleted[lessonIndex].completed = true;
-    enrolledCourse.lessonsCompleted[lessonIndex].progress = 100;
-
-    // Find the next lesson and mark it as accessible
+    // Update overall course progress
     const course = await Course.findById(courseId).populate("topics");
-    const allLessons = (
-      await Promise.all(
-        course.topics.map(async (topic) => {
-          return await Lesson.find({ topic: topic._id }).sort("createdAt");
-        })
-      )
-    ).flat();
-
-    const currentLessonIndex = allLessons.findIndex(
-      (lesson) => lesson._id.toString() === lessonId
+    const totalLessons = course.topics.reduce(
+      (acc, topic) => acc + (topic.lessons ? topic.lessons.length : 0),
+      0
     );
-    if (currentLessonIndex < allLessons.length - 1) {
-      const nextLesson = allLessons[currentLessonIndex + 1];
-      const nextLessonIndex = enrolledCourse.lessonsCompleted.findIndex(
-        (lesson) => lesson.lesson.toString() === nextLesson._id.toString()
-      );
+    const completedLessons = enrolledCourse.lessonsCompleted.filter(
+      (lesson) => lesson.completed
+    ).length;
 
-      if (nextLessonIndex === -1) {
-        enrolledCourse.lessonsCompleted.push({
-          lesson: nextLesson._id,
-          completed: false,
-          progress: 0,
-          isAccessible: true,
-        });
-      } else {
-        enrolledCourse.lessonsCompleted[nextLessonIndex].isAccessible = true;
-      }
+    // Calculate and round the progress
+    const calculatedProgress =
+      totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+    enrolledCourse.progress = Math.round(calculatedProgress);
+
+    // Check if the course is completed
+    if (enrolledCourse.progress === 100) {
+      enrolledCourse.completionDate = new Date();
     }
 
+    // Save the changes
     await enrolledCourse.save();
 
     res.status(200).json({
       success: true,
-      message: "Lesson completed and next lesson unlocked",
-      data: enrolledCourse.lessonsCompleted,
+      message: "Lesson marked as completed",
+      data: {
+        lessonId: lessonId,
+        courseProgress: enrolledCourse.progress,
+        isCompleted: enrolledCourse.progress === 100,
+      },
     });
   })
 );

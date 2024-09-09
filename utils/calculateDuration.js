@@ -49,7 +49,25 @@ function estimateReadingTime(markdown, wordsPerMinute = 225) {
 
   return readingTimeMinutes;
 }
+
+function optimizedEstimateReadingTime(markdown, wordsPerMinute = 225) {
+  const cleanMarkdown = markdown
+    .replace(/```[\s\S]*?```/g, "") // Remove code blocks
+    .replace(/&[#\w]+;/g, " ") // Remove HTML entities
+    .replace(/!\[.*?\]\(.*?\)/g, "") // Remove image syntax
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Remove link URLs but keep link text
+    .replace(/(`|#{1,6}\s*|^\s*[-*]\s|^>\s*)/gm, "") // Remove inline code, headings, list markers, blockquotes
+    .replace(/(\*\*|__)(.*?)\1/g, "$2") // Remove bold
+    .replace(/(\*|_)(.*?)\1/g, "$2") // Remove italic
+    .replace(/-{3,}/g, "") // Remove thematic breaks
+    .replace(/\s+/g, " ") // Replace multiple spaces and newlines with a single space
+    .trim();
+
+  const wordCount = cleanMarkdown.match(/\b[\w']+\b/g)?.length || 0;
+  return Math.ceil(wordCount / wordsPerMinute);
+}
 module.exports = {
   calculateDuration,
   estimateReadingTime,
+  optimizedEstimateReadingTime,
 };

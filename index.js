@@ -69,7 +69,20 @@ app.listen(PORT, async () => {
   // const course = await courseModel.find({ status: "published" });
   // console.log(course.length);
   // await courseModel.updateMany({ status: "published" });
+  // await EnrolledCourse.findByIdAndUpdate("66d46fac8ae554791d76e199",{
+
+  // })
   // await EnrolledCourse.deleteMany();
+  const userId = "66cefb5a0629ecb1db8efca1";
+  const courseId = "66d4480beb49f0c20f0bcde6";
+
+  // await EnrolledCourse.deleteMany();
+
+  // await userModel.findByIdAndUpdate(userId, {
+  //   $set: {
+  //     enrolledCourses: [],
+  //   },
+  // });
   console.log(`Server is running on port ${PORT}`);
 });
 
@@ -97,6 +110,7 @@ const moment = require("moment");
 const Course = require("./models/courseModel");
 const Category = require("./models/category");
 const EnrolledCourse = require("./models/enrolledCourse");
+const userModel = require("./models/userModel");
 // Main function to insert dummy data
 const insertDummyData = async () => {
   try {
