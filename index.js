@@ -14,6 +14,7 @@ const coursev2 = require("./routes/v2/courses");
 const categoryv2 = require("./routes/v2/category");
 const topicsv2 = require("./routes/v2/topics");
 const lessonsv2 = require("./routes/v2/lessons");
+const reviewsv2 = require("./routes/v2/reviews");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const streak = require("./models/streak");
@@ -47,7 +48,7 @@ app.use("/", topicRoutes);
 app.use("/", quizRoutes);
 app.use("/certificate", certificateRoutes);
 app.use("/", streakRoutes);
-app.use("/api/v2", coursev2, categoryv2, topicsv2, lessonsv2);
+app.use("/api/v2", coursev2, categoryv2, topicsv2, lessonsv2, reviewsv2);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;

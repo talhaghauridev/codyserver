@@ -1,7 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const Review = require("../../models/Review");
-const Course = require("../../models/Course");
+const Review = require("../../models/reviews");
+const Course = require("../../models/courseModel");
 const isAuthenticated = require("../../middlewares/auth");
 const ErrorHandler = require("../../utils/ErrorHandler");
 const asyncHandler = require("../../middlewares/asyncErrorHandler");
@@ -44,6 +44,7 @@ router.post(
   })
 );
 
+// Get all reviews for a course with filtering, pagination, and sorting
 router.get(
   "/reviews",
   asyncHandler(async (req, res, next) => {
@@ -64,33 +65,45 @@ router.get(
 
     // Add rating filter if provided
     if (rating) {
-      if (!isValidRating(parseFloat(rating))) {
+      if (!isValidRating(rating)) {
         return next(new ErrorHandler("Invalid rating value", 400));
       }
       query.rating = parseFloat(rating);
     }
 
-    const options = {
-      page: Math.max(1, parseInt(page)),
-      limit: Math.min(100, Math.max(1, parseInt(limit))),
-      sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 },
-      populate: { path: "user", select: "name avatar" },
-    };
+    const pageNumber = Math.max(1, parseInt(page));
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit)));
+    const skip = (pageNumber - 1) * limitNumber;
 
-    const reviews = await Review.paginate(query, options);
+    const sortOptions = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
 
-    res.status(200).json({
-      success: true,
-      data: reviews.docs,
-      currentPage: reviews.page,
-      totalPages: reviews.totalPages,
-      totalReviews: reviews.totalDocs,
-    });
+    try {
+      const [reviews, totalReviews] = await Promise.all([
+        Review.find(query)
+          .sort(sortOptions)
+          .skip(skip)
+          .limit(limitNumber)
+          .populate("user", "name avatar"),
+        Review.countDocuments(query),
+      ]);
+
+      const totalPages = Math.ceil(totalReviews / limitNumber);
+
+      res.status(200).json({
+        success: true,
+        reviews: reviews,
+        currentPage: pageNumber,
+        totalPages: totalPages,
+        totalReviews: totalReviews,
+      });
+    } catch (error) {
+      return next(new ErrorHandler("Error fetching reviews", 500));
+    }
   })
 );
 
 // Update a review
-router.put("/:id", async (req, res) => {
+router.put("/reviews/:id", async (req, res) => {
   try {
     const { rating, content } = req.body;
     const updatedReview = await Review.findByIdAndUpdate(
