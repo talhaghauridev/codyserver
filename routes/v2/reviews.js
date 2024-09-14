@@ -56,7 +56,7 @@ router.get(
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
-
+    console.log({ courseId, rating, page, limit, sortBy, sortOrder });
     if (!isValidMongoId(courseId)) {
       return next(new ErrorHandler("Invalid course ID", 400));
     }
@@ -91,10 +91,11 @@ router.get(
 
       res.status(200).json({
         success: true,
-        reviews: reviews,
+        results: reviews.length,
         currentPage: pageNumber,
         totalPages: totalPages,
         totalReviews: totalReviews,
+        reviews,
       });
     } catch (error) {
       return next(new ErrorHandler("Error fetching reviews", 500));
@@ -103,13 +104,14 @@ router.get(
 );
 
 // Update a review
-router.put("/reviews/:id", async (req, res) => {
+router.put("/reviews/:id", isAuthenticated, async (req, res) => {
   try {
+    console.log(req.body);
     const { rating, content } = req.body;
     const updatedReview = await Review.findByIdAndUpdate(
       req.params.id,
       { rating, content },
-      { new: true, runValidators: true }
+      { new: true }
     );
 
     if (!updatedReview) {
@@ -128,7 +130,7 @@ router.put("/reviews/:id", async (req, res) => {
 });
 
 // Delete a review
-router.delete("/:id", async (req, res) => {
+router.delete("/reviews/:id", async (req, res) => {
   try {
     const review = await Review.findById(req.params.id);
     if (!review) {

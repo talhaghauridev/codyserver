@@ -246,6 +246,9 @@ router.get(
             completed: completionInfo ? completionInfo.completed : false,
             progress: completionInfo ? completionInfo.progress : 0,
             isAccessible: isAccessible,
+            quizCompleted: completionInfo
+              ? completionInfo.quizCompleted
+              : false, // Added this line
           };
         });
         return topic;
@@ -478,7 +481,7 @@ router.get(
     });
   })
 );
-router.post(
+router.patch(
   "/courses/:courseId/lessons/:lessonId/complete",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {

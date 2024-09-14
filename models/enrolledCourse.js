@@ -18,6 +18,10 @@ const enrolledCourseSchema = new mongoose.Schema(
           ref: "Lesson",
           required: true,
         },
+        quizCompleted: {
+          type: Boolean,
+          default: false,
+        },
         completed: { type: Boolean, default: false },
         progress: { type: Number, default: 0 },
         lastAccessDate: { type: Date },
@@ -26,7 +30,7 @@ const enrolledCourseSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+enrolledCourseSchema.index({ user: 1, course: 1 }, { unique: true });
 const EnrolledCourse = mongoose.model("EnrolledCourse", enrolledCourseSchema);
 
 module.exports = EnrolledCourse;

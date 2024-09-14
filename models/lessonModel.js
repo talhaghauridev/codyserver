@@ -56,3 +56,14 @@ const lessonSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Lesson", lessonSchema);
+
+// options: [{
+//   optionText: {
+//     type: String,
+//     required: [true, "An option must have text"],
+//   },
+//   isCorrect: {
+//     type: Boolean,
+//     required: true,
+//   }
+// }],
