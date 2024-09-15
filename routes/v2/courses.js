@@ -50,15 +50,16 @@ router.get(
     const {
       page = 1,
       limit = 10,
-      sort,
+      sortBy = "publishedAt",
       difficulty,
       search,
       category,
       popular,
+      rating,
     } = req.query;
 
     let query = Course.find({ status: "published" });
-
+    console.log(req.query, req.query.search ? true : false);
     if (search) {
       const searchRegex = new RegExp(search, "i");
       query = query.or([
@@ -96,16 +97,31 @@ router.get(
       }
     }
 
-    // Sort
-    if (sort) {
-      const sortBy = sort.split(",").join(" ");
-      query = query.sort(sortBy);
+    if (sortBy) {
+      const sortOptions = { [sortBy]: -1 };
+      query = query.sort(sortOptions);
     } else if (popular) {
       query = query.sort({ studentsEnrolled: -1 });
     } else {
       query = query.sort("-publishedAt");
     }
 
+    if (rating) {
+      const ratingNumber = parseInt(rating);
+      if (!isNaN(ratingNumber) && ratingNumber >= 1 && ratingNumber <= 5) {
+        query = query
+          .where("overallRating")
+          .gte(ratingNumber)
+          .lt(ratingNumber + 1);
+      } else {
+        return next(
+          new ErrorHandler(
+            "Invalid rating. Please provide a whole number between 1 and 5.",
+            400
+          )
+        );
+      }
+    }
     // Pagination
     const startIndex = (Number(page) - 1) * limit;
     const [courses, totalCourses] = await Promise.all([
