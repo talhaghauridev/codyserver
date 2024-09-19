@@ -16,7 +16,7 @@ const topicsv2 = require("./routes/v2/topics");
 const lessonsv2 = require("./routes/v2/lessons");
 const reviewsv2 = require("./routes/v2/reviews");
 const quizsv2 = require("./routes/v2/quiz");
-
+const bookmarksv2 = require("./routes/v2/bookmark");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const streak = require("./models/streak");
@@ -57,7 +57,8 @@ app.use(
   topicsv2,
   lessonsv2,
   reviewsv2,
-  quizsv2
+  quizsv2,
+  bookmarksv2
 );
 
 app.use((err, req, res, next) => {

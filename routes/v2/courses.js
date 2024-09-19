@@ -125,7 +125,13 @@ router.get(
     // Pagination
     const startIndex = (Number(page) - 1) * limit;
     const [courses, totalCourses] = await Promise.all([
-      query.skip(startIndex).limit(Number(limit)).populate("category"),
+      query
+        .skip(startIndex)
+        .limit(Number(limit))
+        .populate("category")
+        .select(
+          "title tags studentsEnrolled difficulty overallRating numberOfRatings status coverImage logo"
+        ),
       Course.countDocuments({ status: "published" }),
     ]);
 
@@ -471,13 +477,17 @@ router.get(
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
+    const { limit = 10, page = 1 } = req.query;
+    const skip = (Number(page) - 1) * limit;
 
     const enrolledCourses = await EnrolledCourse.find({ user: userId })
       .populate({
         path: "course",
         select: "title description coverImage logo difficulty",
       })
-      .sort("-createdAt");
+      .sort("-createdAt")
+      .limit(limit)
+      .skip(skip);
 
     if (!enrolledCourses) {
       return next(new ErrorHandler("No enrolled courses found", 404));
@@ -488,6 +498,8 @@ router.get(
       course: enrollment.course,
       progress: enrollment.progress,
       enrolledAt: enrollment.createdAt,
+      completionDate: enrollment.completionDate,
+      startDate: enrollment.startDate,
     }));
 
     res.status(200).json({
@@ -497,6 +509,127 @@ router.get(
     });
   })
 );
+
+router.get(
+  "/in-progress-courses",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [enrolledCourses, totalCourses] = await Promise.all([
+      EnrolledCourse.find({
+        user: userId,
+        completionDate: null,
+      })
+        .populate({
+          path: "course",
+          select: "title description logo difficulty topics",
+          populate: {
+            path: "topics",
+            select: "lessons",
+            populate: {
+              path: "lessons",
+              select: "duration",
+            },
+          },
+        })
+        .sort("-updatedAt")
+        .skip(skip)
+        .limit(Number(limit)),
+      EnrolledCourse.countDocuments({
+        user: userId,
+        completionDate: null,
+      }),
+    ]);
+
+    const formattedCourses = enrolledCourses.map((enrollment) => {
+      const progress = enrollment.progress;
+      const totalDuration = enrollment.course.topics.reduce(
+        (acc, topic) =>
+          acc +
+          topic.lessons.reduce(
+            (lessonAcc, lesson) => lessonAcc + lesson.duration,
+            0
+          ),
+        0
+      );
+      const remainingDuration = Math.round(
+        totalDuration * (1 - progress / 100)
+      );
+
+      return {
+        _id: enrollment._id,
+        courseId: enrollment.course._id,
+        title: enrollment.course.title,
+        description: enrollment.course.description,
+        logo: enrollment.course.logo,
+        difficulty: enrollment.course.difficulty,
+        progress,
+        lessonsCompleted: `${enrollment.lessonsCompleted.filter((l) => l.completed).length}/${enrollment.course.topics.reduce((acc, topic) => acc + topic.lessons.length, 0)} Lessons`,
+        timeLeft: `Est. ${remainingDuration}m left`,
+        lastUpdated: enrollment.updatedAt,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      courses: formattedCourses,
+      totalCourses,
+      currentPage: Number(page),
+      totalPages: Math.ceil(totalCourses / Number(limit)),
+    });
+  })
+);
+
+// 3. Get all completed courses/certifications
+router.get(
+  "/completed-courses",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    const userId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [completedCourses, totalCourses] = await Promise.all([
+      EnrolledCourse.find({
+        user: userId,
+        completionDate: { $ne: null },
+      })
+        .populate({
+          path: "course",
+          select: "title description logo difficulty",
+        })
+        .sort("-completionDate")
+        .skip(skip)
+        .limit(Number(limit)),
+      EnrolledCourse.countDocuments({
+        user: userId,
+        completionDate: { $ne: null },
+      }),
+    ]);
+
+    const formattedCourses = completedCourses.map((enrollment) => ({
+      _id: enrollment._id,
+      courseId: enrollment.course._id,
+      title: enrollment.course.title,
+      description: enrollment.course.description,
+      logo: enrollment.course.logo,
+      difficulty: enrollment.course.difficulty,
+      completionDate: enrollment.completionDate,
+    }));
+
+    res.status(200).json({
+      success: true,
+      courses: formattedCourses,
+      totalCourses,
+      currentPage: Number(page),
+      totalPages: Math.ceil(totalCourses / Number(limit)),
+    });
+  })
+);
+
 router.patch(
   "/courses/:courseId/lessons/:lessonId/complete",
   isAuthenticated,
