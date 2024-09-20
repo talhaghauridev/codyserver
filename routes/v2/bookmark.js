@@ -20,7 +20,7 @@ router.post(
     });
 
     res.status(201).json({
-      status: "success",
+      success: true,
       data: {
         bookmark: newBookmark,
       },
@@ -42,7 +42,7 @@ router.delete(
     }
 
     res.status(204).json({
-      status: "success",
+      success: true,
       data: null,
     });
   })
@@ -78,9 +78,10 @@ router.get(
     const bookmark = await Bookmark.findOne({ user: userId, lesson: lessonId });
 
     res.status(200).json({
-      status: "success",
+      success: true,
       data: {
         isBookmarked: !!bookmark,
+        bookmarkId: bookmark ? bookmark._id : null,
       },
     });
   })
