@@ -82,7 +82,9 @@ app.listen(PORT, async () => {
   // console.log(course.length);
   // await courseModel.updateMany({ status: "published" });
   // await EnrolledCourse.findByIdAndUpdate("66d46fac8ae554791d76e199",{
-
+  // await User.findOneAndDelete({
+  //   email: "alighauridev@gmail.com",
+  // });
   // })
   // await EnrolledCourse.deleteMany();
   const userId = "66cefb5a0629ecb1db8efca1";
