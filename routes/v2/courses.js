@@ -516,56 +516,35 @@ router.get(
   asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
     const { page = 1, limit = 10, all } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
 
     const query = {
       user: userId,
       completionDate: null,
     };
-
-    let enrolledCourses, totalCourses;
-
-    if (all === "true") {
-      // Fetch all courses without pagination
-      [enrolledCourses, totalCourses] = await Promise.all([
-        EnrolledCourse.find(query)
-          .populate({
-            path: "course",
-            select: "title description logo difficulty topics",
-            populate: {
-              path: "topics",
-              select: "lessons",
-              populate: {
-                path: "lessons",
-                select: "duration",
-              },
-            },
-          })
-          .sort("-updatedAt"),
-        EnrolledCourse.countDocuments(query),
-      ]);
-    } else {
-      // Fetch paginated courses
-      const skip = (Number(page) - 1) * Number(limit);
-      [enrolledCourses, totalCourses] = await Promise.all([
-        EnrolledCourse.find(query)
-          .populate({
-            path: "course",
-            select: "title description logo difficulty topics",
-            populate: {
-              path: "topics",
-              select: "lessons",
-              populate: {
-                path: "lessons",
-                select: "duration",
-              },
-            },
-          })
-          .sort("-updatedAt")
-          .skip(skip)
-          .limit(Number(limit)),
-        EnrolledCourse.countDocuments(query),
-      ]);
+    const enrolledCourseQuery = EnrolledCourse.find(query)
+      .populate({
+        path: "course",
+        select: "title logo difficulty topics",
+        populate: {
+          path: "topics",
+          select: "lessons",
+          populate: {
+            path: "lessons",
+            select: "duration _id",
+          },
+        },
+      })
+      .sort("-updatedAt");
+    if (all !== "true") {
+      enrolledCourseQuery.limit(Number(limit));
+      enrolledCourseQuery.skip(Number(skip));
     }
+
+    const [enrolledCourses, totalCourses] = await Promise.all([
+      enrolledCourseQuery,
+      EnrolledCourse.countDocuments(query),
+    ]);
 
     const formattedCourses = enrolledCourses.map((enrollment) => {
       const progress = enrollment.progress;
@@ -582,6 +561,24 @@ router.get(
         totalDuration * (1 - progress / 100)
       );
 
+      // Find the next lesson ID
+      let nextLessonId = null;
+      const allLessons = enrollment.course.topics.flatMap(
+        (topic) => topic.lessons
+      );
+      const completedLessonIds = new Set(
+        enrollment.lessonsCompleted
+          .filter((l) => l.completed)
+          .map((l) => l.lesson.toString())
+      );
+
+      for (const lesson of allLessons) {
+        if (!completedLessonIds.has(lesson._id.toString())) {
+          nextLessonId = lesson._id;
+          break;
+        }
+      }
+
       return {
         _id: enrollment._id,
         courseId: enrollment.course._id,
@@ -590,9 +587,10 @@ router.get(
         logo: enrollment.course.logo,
         difficulty: enrollment.course.difficulty,
         progress,
-        lessonsCompleted: `${enrollment.lessonsCompleted.filter((l) => l.completed).length}/${enrollment.course.topics.reduce((acc, topic) => acc + topic.lessons.length, 0)} Lessons`,
+        lessonsCompleted: `${enrollment.lessonsCompleted.filter((l) => l.completed).length}/${allLessons.length} Lessons`,
         timeLeft: `Est. ${remainingDuration}m left`,
         lastUpdated: enrollment.updatedAt,
+        nextLessonId: nextLessonId,
       };
     });
 
@@ -605,7 +603,6 @@ router.get(
     });
   })
 );
-
 // 2. Completed courses endpoint
 router.get(
   "/completed-courses",
@@ -614,39 +611,27 @@ router.get(
     const userId = req.user._id;
     const { page = 1, limit = 10, all } = req.query;
 
+    const skip = (Number(page) - 1) * Number(limit);
     const query = {
       user: userId,
       completionDate: { $ne: null },
     };
 
-    let completedCourses, totalCourses;
+    const enrolledCourseQuery = EnrolledCourse.find(query)
+      .populate({
+        path: "course",
+        select: "title logo difficulty",
+      })
+      .sort("-completionDate");
 
-    if (all === "true") {
-      // Fetch all courses without pagination
-      [completedCourses, totalCourses] = await Promise.all([
-        EnrolledCourse.find(query)
-          .populate({
-            path: "course",
-            select: "title description logo difficulty",
-          })
-          .sort("-completionDate"),
-        EnrolledCourse.countDocuments(query),
-      ]);
-    } else {
-      // Fetch paginated courses
-      const skip = (Number(page) - 1) * Number(limit);
-      [completedCourses, totalCourses] = await Promise.all([
-        EnrolledCourse.find(query)
-          .populate({
-            path: "course",
-            select: "title description logo difficulty",
-          })
-          .sort("-completionDate")
-          .skip(skip)
-          .limit(Number(limit)),
-        EnrolledCourse.countDocuments(query),
-      ]);
+    if (all !== "true") {
+      enrolledCourseQuery.limit = Number(limit);
+      enrolledCourseQuery.skip = Number(skip);
     }
+    const [completedCourses, totalCourses] = await Promise.all([
+      enrolledCourseQuery,
+      EnrolledCourse.countDocuments(query),
+    ]);
 
     const formattedCourses = completedCourses.map((enrollment) => ({
       _id: enrollment._id,

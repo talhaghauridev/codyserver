@@ -87,7 +87,7 @@ app.listen(PORT, async () => {
   // });
   // })
   // await EnrolledCourse.deleteMany();
-  const userId = "66cefb5a0629ecb1db8efca1";
+  const userId = "66eef27e1f5cfb0e71407870";
   const courseId = "66d4480beb49f0c20f0bcde6";
 
   // await EnrolledCourse.deleteMany();

@@ -15,7 +15,11 @@ const {
 } = require("../constants");
 const { sendEmail } = require("../utils/sendMail");
 const jwt = require("jsonwebtoken");
-
+const asyncHandler = require("../middlewares/asyncErrorHandler");
+const {
+  removeFromCloudinary,
+  uploadCloudinary,
+} = require("../utils/cloudinary");
 router.post(
   "/signup",
   asyncErrorHandler(async (req, res, next) => {
@@ -60,7 +64,7 @@ router.post("/login", async (req, res, next) => {
 
   const user = await User.findOne({ email }).select("+password");
 
-  if (!user) {
+  if (!user || user.provider !== LoginProviders.EMAIL_PASSWORD) {
     return next(new ErrorHandler("Invalid Email or Password", 401));
   }
 
@@ -71,17 +75,39 @@ router.post("/login", async (req, res, next) => {
   }
 
   if (!user.isVerified) {
-    throw new ErrorHandler("Please verify your email to login", 403);
+    // Generate a new OTP for verification
+    const otp = user.generateOTP(OtpPorposes.VERFICATIION);
+    await user.save({ validateBeforeSave: false });
+
+    // Send the new OTP via email
+    await sendEmail({
+      email: user.email,
+      subject: "Verify your email",
+      message: `Your account is not verified. Your new verification code is ${otp}. It will expire in 10 minutes.`,
+    });
+
+    // Generate a new OTP token
+    const otpToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
+    });
+
+    return res.status(403).json({
+      success: false,
+      message:
+        "Account not verified. A new verification code has been sent to your email.",
+      otpToken,
+    });
   }
+
   const token = user.getJWTToken();
 
- const loggedInUser = await User.findById(user._id)
+  const loggedInUser = await User.findById(user._id);
 
-  res.status(201).json({
+  res.status(200).json({
     success: true,
     token,
     user: loggedInUser,
-    message: "Login Successfully",
+    message: "Login Successful",
   });
 });
 
@@ -507,7 +533,7 @@ router.get(
 );
 
 router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
-  const { email, name } = req.body;
+  const { email, name, bio } = req.body;
 
   const newUserData = {};
   if (email) {
@@ -567,5 +593,49 @@ router.patch("/change-password", isAuthenticated, async (req, res, next) => {
     message: "Password Updated Successfully",
   });
 });
+
+router.patch(
+  "/update-avatar",
+  isAuthenticated,
+  asyncHandler(async (req, res, next) => {
+    try {
+      const { avatar } = req.body;
+      const userId = req.user;
+      const user = await User.findById(userId);
+      console.log({ user });
+      if (avatar && user) {
+        // Check if user has an existing avatar
+        if (user.avatar && user.avatar.public_id) {
+          // Remove the existing avatar from Cloudinary
+          await removeFromCloudinary(user.avatar.public_id);
+        }
+
+        // Upload the new avatar to Cloudinary
+        const myCloud = await uploadCloudinary(avatar, "avatars", {
+          width: 150,
+        });
+
+        // Update the user's avatar information
+        user.avatar = {
+          public_id: myCloud.public_id,
+          url: myCloud.secure_url,
+        };
+
+        // Save the updated user document
+        await user.save({ validateBeforeSave: false });
+
+        res.status(200).json({
+          success: true,
+          avatar: user.avatar,
+        });
+      } else {
+        return next(new ErrorHandler("Avatar not provided", 400));
+      }
+    } catch (error) {
+      console.log(error);
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
 
 module.exports = router;
