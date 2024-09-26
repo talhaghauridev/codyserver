@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxLength: [50, "Name cannot exceed 50 characters"],
     },
+    bio: {
+      type: String,
+      trim: true,
+    },
     email: {
       type: String,
       required: [true, "Please Enter Your Email"],
@@ -35,6 +39,8 @@ const userSchema = new mongoose.Schema(
       public_id: String,
       url: {
         type: String,
+        default:
+          "https://res.cloudinary.com/dshp9jnuy/image/upload/v1665822253/avatars/nrxsg8sd9iy10bbsoenn.png",
       },
     },
     role: {

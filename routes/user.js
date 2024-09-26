@@ -534,6 +534,7 @@ router.get(
 
 router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
   const { email, name, bio } = req.body;
+  console.log(req.body);
 
   const newUserData = {};
   if (email) {
@@ -542,25 +543,9 @@ router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
   if (name) {
     newUserData.name = name;
   }
-  // if (req.body.avatar !== "") {
-  //     const user = await User.findById(req.user.id);
-
-  //     const imageId = user.avatar.public_id;
-
-  //     await cloudinary.v2.uploader.destroy(imageId);
-
-  //     const myCloud = await cloudinary.v2.uploader.upload(req.body.avatar, {
-  //         folder: "avatars",
-  //         width: 150,
-  //         crop: "scale",
-  //     });
-
-  //     newUserData.avatar = {
-  //         public_id: myCloud.public_id,
-  //         url: myCloud.secure_url,
-  //     }
-  // }
-  console.log(newUserData);
+  if (bio) {
+    newUserData.bio = bio;
+  }
 
   await User.findByIdAndUpdate(req.user._id, newUserData, {
     runValidators: false,
@@ -573,17 +558,21 @@ router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
 });
 
 router.patch("/change-password", isAuthenticated, async (req, res, next) => {
-  const { oldPassword, newPassword } = req.body;
-  if (!oldPassword || !newPassword) {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (!currentPassword || !newPassword || !confirmPassword) {
     return next(new ErrorHandler("Please fill all fields", 400));
   }
+
   console.log(req.body);
   const user = await User.findById(req.user?._id).select("+password");
   console.log({ user });
-  const isPasswordMatched = await user.comparePassword(oldPassword);
+  const isPasswordMatched = await user.comparePassword(currentPassword);
   console.log({ isPasswordMatched });
   if (!isPasswordMatched) {
-    return next(new ErrorHandler("Old Password is Invalid", 400));
+    return next(new ErrorHandler("Current Password is Invalid", 400));
+  }
+  if (newPassword !== confirmPassword) {
+    return next(new ErrorHandler("Passwords do not match", 400));
   }
 
   user.password = newPassword;
@@ -612,7 +601,7 @@ router.patch(
 
         // Upload the new avatar to Cloudinary
         const myCloud = await uploadCloudinary(avatar, "avatars", {
-          width: 150,
+          width: 250,
         });
 
         // Update the user's avatar information
@@ -626,6 +615,7 @@ router.patch(
 
         res.status(200).json({
           success: true,
+          message: "Update Avatar Successfully",
           avatar: user.avatar,
         });
       } else {
