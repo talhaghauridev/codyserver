@@ -2,6 +2,7 @@ const express = require("express");
 const asyncHandler = require("../../middlewares/asyncErrorHandler");
 const Bookmark = require("../../models/bookmark");
 const isAuthenticated = require("../../middlewares/auth");
+const ErrorHandler = require("../../utils/ErrorHandler");
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ router.delete(
     const bookmark = await Bookmark.findOneAndDelete({ _id: id, user: userId });
 
     if (!bookmark) {
-      return next(new AppError("No bookmark found with that ID", 404));
+      return next(new ErrorHandler("No bookmark found with that ID", 404));
     }
 
     res.status(204).json({

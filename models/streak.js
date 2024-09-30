@@ -249,7 +249,11 @@ streakSchema.methods.getYearlyStreakData = function (year = null) {
 
         dailyData.push({
           date: currentDate.format("YYYY-MM-DD"),
-          hasActivity: !!activity,
+          hasActivity: activity
+            ? activity.lessonsCompleted > 0 ||
+              activity.coursesCompleted > 0 ||
+              activity.studyHours > 0
+            : false,
           lessonsCompleted: activity ? activity.lessonsCompleted : 0,
           coursesCompleted: activity ? activity.coursesCompleted : 0,
           studyHours: activity ? activity.studyHours : 0,
@@ -287,6 +291,33 @@ streakSchema.methods.hasPreviousYearData = function (currentYear) {
       moment(activity.date).isSameOrAfter(firstDayOfPreviousYear) &&
       moment(activity.date).isBefore(`${currentYear}-01-01`)
   );
+};
+
+streakSchema.methods.getWeekData = function (year, weekNumber) {
+  const startOfWeek = moment().year(year).week(weekNumber).startOf("week");
+  const endOfWeek = moment().year(year).week(weekNumber).endOf("week");
+
+  const weekData = [];
+
+  for (
+    let date = startOfWeek.clone();
+    date.isSameOrBefore(endOfWeek);
+    date.add(1, "day")
+  ) {
+    const activity = this.dailyActivities.find((a) =>
+      moment(a.date).isSame(date, "day")
+    );
+
+    weekData.push({
+      date: date.format("YYYY-MM-DD"),
+      hasActivity: !!activity,
+      lessonsCompleted: activity ? activity.lessonsCompleted : 0,
+      coursesCompleted: activity ? activity.coursesCompleted : 0,
+      studyHours: activity ? activity.studyHours : 0,
+    });
+  }
+
+  return weekData;
 };
 
 module.exports = mongoose.model("Streak", streakSchema);

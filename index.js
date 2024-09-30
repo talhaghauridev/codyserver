@@ -19,7 +19,7 @@ const quizsv2 = require("./routes/v2/quiz");
 const bookmarksv2 = require("./routes/v2/bookmark");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
-const streak = require("./models/streak");
+const Streak = require("./models/streak");
 const User = require("./models/userModel");
 require("dotenv").config();
 const app = express();
@@ -87,10 +87,12 @@ app.listen(PORT, async () => {
   // });
   // })
   // await EnrolledCourse.deleteMany();
-  const userId = "66eef27e1f5cfb0e71407870";
+  const userId = "66cefb5a0629ecb1db8efca1";
   const courseId = "66d4480beb49f0c20f0bcde6";
 
-  // await EnrolledCourse.deleteMany();
+  // await EnrolledCourse.deleteMany({
+  //   user: userId,
+  // });
 
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: {
@@ -103,58 +105,11 @@ app.listen(PORT, async () => {
 const USER_ID = mongoose.Types.ObjectId("66a10ae57e83b602549a6ede");
 
 // Function to generate random activity data
-const generateRandomActivity = () => ({
-  lessonsCompleted: Math.floor(Math.random() * 5),
-  coursesCompleted: Math.floor(Math.random() * 2),
-  studyHours: Math.round((Math.random() * 4 + 0.5) * 10) / 10, // 0.5 to 4.5 hours, rounded to 1 decimal
-});
 
-// Function to insert dummy data for a specific date
-const insertDummyDataForDate = async (streak, date) => {
-  const activity = generateRandomActivity();
-  await streak.updateStreak(
-    date,
-    activity.lessonsCompleted,
-    activity.coursesCompleted,
-    activity.studyHours
-  );
-};
-const Streak = require("./models/streak");
 const moment = require("moment");
 const Course = require("./models/courseModel");
 const Category = require("./models/category");
 const EnrolledCourse = require("./models/enrolledCourse");
 const userModel = require("./models/userModel");
 // Main function to insert dummy data
-const insertDummyData = async () => {
-  try {
-    let streak = await Streak.findOne({ userId: USER_ID });
-    if (!streak) {
-      streak = new Streak({ userId: USER_ID });
-    }
-
-    // Generate data for the past year
-    const endDate = moment().endOf("day");
-    const startDate = moment(endDate).subtract(1, "year").startOf("day");
-
-    for (
-      let m = moment(startDate);
-      m.isSameOrBefore(endDate);
-      m.add(1, "day")
-    ) {
-      // Randomly skip some days to create gaps in the streak
-      if (Math.random() > 0.7) {
-        await insertDummyDataForDate(streak, m.toDate());
-      }
-    }
-
-    console.log("Dummy data inserted successfully!");
-  } catch (error) {
-    console.error("Error inserting dummy data:", error);
-  } finally {
-    mongoose.disconnect();
-  }
-};
-
-// Run the script
-// insertDummyData();
+const userId = "66cefb5a0629ecb1db8efca1";

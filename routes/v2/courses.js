@@ -10,6 +10,7 @@ const Lesson = require("../../models/lessonModel");
 const EnrolledCourse = require("../../models/enrolledCourse");
 const isAuthenticated = require("../../middlewares/auth");
 const userModel = require("../../models/userModel");
+const Streak = require("../../models/streak");
 
 const populateFields = (query, fields) => {
   if (fields.includes("topics")) {
@@ -675,6 +676,8 @@ router.patch(
       (lesson) => lesson.lesson && lesson.lesson.toString() === lessonId
     );
 
+    let isNewlyCompleted = false;
+
     if (lessonIndex === -1) {
       // If the lesson is not in the array, add it
       enrolledCourse.lessonsCompleted.push({
@@ -683,11 +686,13 @@ router.patch(
         progress: 100,
         lastAccessDate: new Date(),
       });
-    } else {
-      // If the lesson is already in the array, mark it as completed
+      isNewlyCompleted = true;
+    } else if (!enrolledCourse.lessonsCompleted[lessonIndex].completed) {
+      // If the lesson is already in the array but not completed, mark it as completed
       enrolledCourse.lessonsCompleted[lessonIndex].completed = true;
       enrolledCourse.lessonsCompleted[lessonIndex].progress = 100;
       enrolledCourse.lessonsCompleted[lessonIndex].lastAccessDate = new Date();
+      isNewlyCompleted = true;
     }
 
     // Update overall course progress
@@ -705,13 +710,30 @@ router.patch(
       totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
     enrolledCourse.progress = Math.round(calculatedProgress);
 
+    let isCourseNewlyCompleted = false;
+
     // Check if the course is completed
-    if (enrolledCourse.progress === 100) {
+    if (enrolledCourse.progress === 100 && !enrolledCourse.completionDate) {
       enrolledCourse.completionDate = new Date();
+      isCourseNewlyCompleted = true;
     }
 
     // Save the changes
     await enrolledCourse.save();
+
+    // Update streak
+    if (isNewlyCompleted || isCourseNewlyCompleted) {
+      const streak = await Streak.getOrCreateStreak(userId);
+      await streak.updateStreak(
+        new Date(),
+        isNewlyCompleted ? 1 : 0, // lessonsCompleted
+        isCourseNewlyCompleted ? 1 : 0, // coursesCompleted
+        isNewlyCompleted
+          ? course.topics.find((t) => t.lessons.includes(lessonId))?.duration /
+              60 || 0
+          : 0 // studyHours (assuming duration is in minutes)
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -724,7 +746,6 @@ router.patch(
     });
   })
 );
-
 router.patch(
   "/update-lesson-progress",
   asyncHandler(async (req, res, next) => {

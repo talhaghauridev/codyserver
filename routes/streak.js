@@ -101,4 +101,31 @@ router.get("/yearly-streak", isAuthenticated, async (req, res) => {
   }
 });
 
+router.get("/weekly-streak", isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const streak = await Streak.getOrCreateStreak(userId);
+
+    const weekNumber = parseInt(req.query.week) || moment().week();
+    const year = parseInt(req.query.year) || moment().year();
+
+    const weekData = streak.getWeekData(year, weekNumber);
+
+    res.json({
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+      totalLessonsCompleted: streak.totalLessonsCompleted,
+      totalCoursesCompleted: streak.totalCoursesCompleted,
+      totalStudyHours: streak.totalStudyHours,
+      weekNumber,
+      year,
+      weekData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching weekly streak data",
+      error: error.message,
+    });
+  }
+});
 module.exports = router;
