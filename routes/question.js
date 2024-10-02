@@ -24,7 +24,7 @@ router.post("/questions/:lessonId", async (req, res) => {
     lesson.quiz.push(quiz._id);
     await lesson.save({ validateBeforeSave: false });
 
-    res.status(201).json({ message: "Quiz created successfully" });
+    res.status(201).json({ message: "LessonQuiz created successfully" });
   } catch (error) {
     console.error("Error creating quiz:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -65,7 +65,7 @@ router.patch("/questions/:lessonId/:questionId", async (req, res) => {
       },
     });
 
-    res.status(201).json({ message: "Quiz delete successfully" });
+    res.status(201).json({ message: "LessonQuiz delete successfully" });
   } catch (error) {
     console.error("Error creating quiz:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -85,7 +85,7 @@ router.delete("/questions/:lessonId/:questionId", async (req, res) => {
 
     await lesson.save({ validateBeforeSave: false });
 
-    res.status(201).json({ message: "Quiz delete successfully" });
+    res.status(201).json({ message: "LessonQuiz delete successfully" });
   } catch (error) {
     console.error("Error creating quiz:", error);
     res.status(500).json({ message: "Internal server error" });

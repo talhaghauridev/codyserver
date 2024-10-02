@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { faker } = require("@faker-js/faker");
 const Lesson = require("./models/lessonModel");
-const Quiz = require("./models/Quiz");
+const LessonQuiz = require("./models/LessonQuiz");
 
 mongoose.set("strictQuery", false);
 
@@ -28,7 +28,7 @@ const generateQuizForLesson = async (lesson) => {
     const correctIndex = faker.number.int({ min: 0, max: 3 });
     options[correctIndex].isCorrect = true;
 
-    const quiz = new Quiz({
+    const quiz = new LessonQuiz({
       lesson: lesson._id,
       question: faker.lorem.sentence() + "?",
       options: options,
@@ -42,6 +42,7 @@ const generateQuizForLesson = async (lesson) => {
 
 const seedQuizzes = async () => {
   try {
+    await LessonQuiz.deleteMany({});
     console.log("Starting quiz seeding process...");
 
     // Get all lessons that don't have quizzes yet
@@ -62,7 +63,7 @@ const seedQuizzes = async () => {
     }
 
     console.log(`Total quizzes created: ${totalQuizzesCreated}`);
-    console.log("Quiz seeding completed successfully.");
+    console.log("LessonQuiz seeding completed successfully.");
   } catch (error) {
     console.error("Error seeding quizzes:", error);
   } finally {

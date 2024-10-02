@@ -46,5 +46,5 @@ quizSchema.pre("save", function (next) {
   }
 });
 
-const Quiz = mongoose.model("Quiz", quizSchema);
-module.exports = Quiz;
+const LessonQuiz = mongoose.model("LessonQuiz", quizSchema);
+module.exports = LessonQuiz;

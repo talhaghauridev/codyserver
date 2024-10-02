@@ -1,6 +1,6 @@
 const express = require("express");
 const isAuthenticated = require("../../middlewares/auth");
-const Quiz = require("../../models/Quiz");
+const LessonQuiz = require("../../models/LessonQuiz");
 const ErrorHandler = require("../../utils/ErrorHandler");
 const lessonModel = require("../../models/lessonModel");
 const asyncHandler = require("../../middlewares/asyncErrorHandler");
@@ -22,7 +22,7 @@ router.post(
       return next(new ErrorHandler("Lesson not found", 404));
     }
 
-    const quiz = await Quiz.create({
+    const quiz = await LessonQuiz.create({
       lesson,
       question,
       options,
@@ -42,10 +42,10 @@ router.put(
   asyncHandler(async (req, res, next) => {
     const { question, options } = req.body;
 
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await LessonQuiz.findById(req.params.id);
 
     if (!quiz) {
-      return next(new ErrorHandler("Quiz not found", 404));
+      return next(new ErrorHandler("LessonQuiz not found", 404));
     }
 
     quiz.question = question;
@@ -67,7 +67,7 @@ router.get(
   asyncHandler(async (req, res, next) => {
     const { lessonId } = req.params;
 
-    const quizzes = await Quiz.find({ lesson: lessonId });
+    const quizzes = await LessonQuiz.find({ lesson: lessonId });
 
     res.status(200).json({
       success: true,
@@ -82,10 +82,10 @@ router.get(
   "/quizzes/:id",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await LessonQuiz.findById(req.params.id);
 
     if (!quiz) {
-      return next(new ErrorHandler("Quiz not found", 404));
+      return next(new ErrorHandler("LessonQuiz not found", 404));
     }
 
     res.status(200).json({
@@ -100,17 +100,17 @@ router.delete(
   "/quizzes/:id",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await LessonQuiz.findById(req.params.id);
 
     if (!quiz) {
-      return next(new ErrorHandler("Quiz not found", 404));
+      return next(new ErrorHandler("LessonQuiz not found", 404));
     }
 
     await quiz.remove();
 
     res.status(200).json({
       success: true,
-      message: "Quiz deleted successfully",
+      message: "LessonQuiz deleted successfully",
     });
   })
 );
@@ -160,7 +160,7 @@ router.patch(
 
     res.status(200).json({
       success: true,
-      message: "Quiz completed successfully",
+      message: "LessonQuiz completed successfully",
     });
   })
 );
