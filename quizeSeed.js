@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { faker } = require("@faker-js/faker");
 const Lesson = require("./models/lessonModel");
 const LessonQuiz = require("./models/LessonQuiz");
+const lessonModel = require("./models/lessonModel");
 
 mongoose.set("strictQuery", false);
 
@@ -42,7 +43,12 @@ const generateQuizForLesson = async (lesson) => {
 
 const seedQuizzes = async () => {
   try {
-    await LessonQuiz.deleteMany({});
+    await Promise.all([
+      lessonModel.updateMany({
+        quiz: [],
+      }),
+      LessonQuiz.deleteMany({}),
+    ]);
     console.log("Starting quiz seeding process...");
 
     // Get all lessons that don't have quizzes yet

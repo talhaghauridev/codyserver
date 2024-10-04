@@ -10,7 +10,7 @@ const router = express.Router();
 
 // Create a new quiz
 router.post(
-  "/quizzes",
+  "/lesson-quizzes",
   isAuthenticated,
 
   asyncHandler(async (req, res, next) => {
@@ -37,7 +37,7 @@ router.post(
 
 // Update a quiz
 router.put(
-  "/quizzes/:id",
+  "/lesson-quizzes/:id",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const { question, options } = req.body;
@@ -79,7 +79,7 @@ router.get(
 
 // Get a single quiz
 router.get(
-  "/quizzes/:id",
+  "/lesson-quizzes/:id",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const quiz = await LessonQuiz.findById(req.params.id);
@@ -97,7 +97,7 @@ router.get(
 
 // Delete a quiz
 router.delete(
-  "/quizzes/:id",
+  "/lesson-quizzes/:id",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const quiz = await LessonQuiz.findById(req.params.id);
@@ -116,7 +116,7 @@ router.delete(
 );
 
 router.patch(
-  "/quizzes/:courseId/:lessonId/complete",
+  "/lesson-quizzes/:courseId/:lessonId/complete",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const { courseId, lessonId } = req.params;
