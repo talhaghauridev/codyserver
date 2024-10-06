@@ -9,6 +9,25 @@ const {
 const Course = require("../../models/courseModel");
 const router = express.Router();
 
+const processContent = (content) => {
+  if (typeof content === "string") {
+    try {
+      // Check if the string is valid JSON
+      JSON.parse(content);
+      // If it's valid JSON, stringify it with indentation for readability
+      return JSON.stringify(JSON.parse(content), null, 2);
+    } catch (e) {
+      // If it's not valid JSON, return the original string
+      return content;
+    }
+  } else if (typeof content === "object") {
+    // If it's already an object, stringify it
+    return JSON.stringify(content, null, 2);
+  }
+  // For any other type, convert to string
+  return String(content);
+};
+
 router.get(
   "/lessons/:id",
   asyncHandler(async (req, res, next) => {
@@ -28,21 +47,26 @@ router.post(
   "/lessons/:topicId",
   asyncHandler(async (req, res, next) => {
     const { topicId } = req.params;
-    const { title, content } = req.body;
+    let { title, content } = req.body;
+
     if (!topicId) {
       return next(new ErrorHandler("Please provide a topic id"));
     }
+
     const topic = await Topic.findById(topicId);
     if (!topic) {
       return next(new ErrorHandler("Topic not found", 404));
     }
+
     const course = await Course.findById(topic.courseId)
       .populate({
         path: "topics",
         select: "duration",
       })
       .select("duration lessonsCount");
-    console.log({ course: JSON.stringify(course, null, 3) });
+
+    // Process content to ensure it's stored as text
+    content = processContent(content);
 
     const duration = optimizedEstimateReadingTime(content);
 
@@ -68,9 +92,10 @@ router.post(
       topic.save({ validateBeforeSave: false }),
       course.save({ validateBeforeSave: false }),
     ]);
+
     res.status(200).json({
       success: true,
-      message: "Lesson create successfully",
+      message: "Lesson created successfully",
     });
   })
 );
@@ -79,7 +104,7 @@ router.put(
   "/lessons/:id",
   asyncHandler(async (req, res, next) => {
     const lessonId = req.params.id;
-    const { title, content } = req.body;
+    let { title, content } = req.body;
 
     const lesson = await Lesson.findById(lessonId);
     if (!lesson) {
@@ -90,6 +115,8 @@ router.put(
     let newDuration = oldDuration;
 
     if (content) {
+      // Process content to ensure it's stored as text
+      content = processContent(content);
       newDuration = optimizedEstimateReadingTime(content);
 
       lesson.content = content;
@@ -102,7 +129,7 @@ router.put(
 
     await lesson.save({ validateBeforeSave: false });
 
-    if (newDuration !== oldDuration && content) {
+    if (newDuration !== oldDuration) {
       const [topic, course] = await Promise.all([
         Topic.findById(lesson.topic),
         Course.findOne({ topics: lesson.topic }),
@@ -127,6 +154,7 @@ router.put(
     });
   })
 );
+
 router.delete(
   "/lessons/:id",
   asyncHandler(async (req, res, next) => {

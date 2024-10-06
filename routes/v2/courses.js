@@ -154,7 +154,6 @@ router.get("/courses-detials/:id", async (req, res, next) => {
 
     query = Course.findOne({
       _id: req.params.id,
-      status: "published",
     })
       .populate("category")
       .sort({ publishedAt: -1 });
@@ -317,7 +316,7 @@ router.get(
 router.post(
   "/courses",
   asyncHandler(async (req, res, next) => {
-    const { title, description, difficulty, tags, category, coverImage, logo } =
+    const { title, description, difficulty, tags, category, status, logo } =
       req.body;
     if (!title || !description || !difficulty || !tags || !category || !logo) {
       return next(new ErrorHandler("Please fill all fields", 400));
@@ -329,21 +328,22 @@ router.post(
       tags,
       category,
       logo,
-      status: "draft",
-      publishedAt: null,
+      status,
+      publishedAt: status ? Date.now() : null,
     };
-    console.log({ courseData });
-
-    if (coverImage) {
-      courseData.coverImage = coverImage;
-    }
-
+    console.log({
+      courseData,
+    });
     const course = await Course.create(courseData);
+    if (course.status === "published" && status === "published") {
+      await Category.findByIdAndUpdate(course.category, {
+        $inc: { courseCount: 1 },
+      });
+    }
 
     res.status(201).json({
       success: true,
-      message: "Course created successfully and saved as draft",
-      data: course,
+      message: `Course created successfully ${course.status === "published" ? "and published" : "and in draft mode"}`,
     });
   })
 );
@@ -852,11 +852,11 @@ router.get(
   })
 );
 
-router.put(
+router.patch(
   "/courses/:id",
   asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const { title, description, difficulty, tags, category, coverImage, logo } =
+    const { title, description, difficulty, tags, category, logo, status } =
       req.body;
 
     if (!id) {
@@ -868,7 +868,10 @@ router.put(
     if (!course) {
       return next(new ErrorHandler("Course not found", 404));
     }
-
+    if (status === "published" && course.status === "draft") {
+      course.status = status;
+      course.publishedAt = Date.now();
+    }
     // Update fields if provided
     if (title) course.title = title;
     if (description) course.description = description;
@@ -879,12 +882,13 @@ router.put(
       course.category = category;
 
       // Update category course counts
-      await Category.findByIdAndUpdate(oldCategory, {
-        $inc: { courseCount: -1 },
-      });
-      await Category.findByIdAndUpdate(category, { $inc: { courseCount: 1 } });
+      await Promise.all([
+        Category.findByIdAndUpdate(oldCategory, {
+          $inc: { courseCount: -1 },
+        }),
+        Category.findByIdAndUpdate(category, { $inc: { courseCount: 1 } }),
+      ]);
     }
-    if (coverImage) course.coverImage = coverImage;
     if (logo) course.logo = logo;
 
     await course.save();
