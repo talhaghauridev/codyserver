@@ -54,6 +54,7 @@ app.use("/certificate", certificateRoutes);
 app.use("/", streakRoutes);
 app.use(
   "/api/v2",
+  quizes,
   coursev2,
   categoryv2,
   topicsv2,
@@ -61,7 +62,6 @@ app.use(
   reviewsv2,
   lessons_quizes,
   bookmarksv2,
-  quizes,
   challenges
 );
 
@@ -105,15 +105,3 @@ app.listen(PORT, async () => {
   // });
   console.log(`Server is running on port ${PORT}`);
 });
-
-const USER_ID = mongoose.Types.ObjectId("66a10ae57e83b602549a6ede");
-
-// Function to generate random activity data
-
-const moment = require("moment");
-const Course = require("./models/courseModel");
-const Category = require("./models/category");
-const EnrolledCourse = require("./models/enrolledCourse");
-const userModel = require("./models/userModel");
-// Main function to insert dummy data
-const userId = "66cefb5a0629ecb1db8efca1";

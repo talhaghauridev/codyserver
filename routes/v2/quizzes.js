@@ -4,6 +4,22 @@ const Quiz = require("../../models/quizModel");
 const ErrorHandler = require("../../utils/ErrorHandler");
 const router = express.Router();
 
+const calculateQuizTime = (questions) => {
+  const baseTimePerQuestion = 2; // 2 minutes per question as a base
+  const additionalTimePerOption = 0.5; // 30 seconds per option
+
+  let totalTime = questions.reduce((acc, question) => {
+    return (
+      acc +
+      baseTimePerQuestion +
+      question.options.length * additionalTimePerOption
+    );
+  }, 0);
+
+  // Round up to the nearest minute
+  return Math.ceil(totalTime);
+};
+
 // Get all quizzes
 router.get(
   "/quizzes",
@@ -15,7 +31,7 @@ router.get(
       query.category = category;
     }
 
-    if (difficulty) {
+    if (difficulty && difficulty !== "all") {
       query.difficulty = difficulty;
     }
 
@@ -66,7 +82,18 @@ router.get(
 router.post(
   "/quizzes",
   asyncHandler(async (req, res) => {
-    const newQuiz = await Quiz.create(req.body);
+    // Get the quiz data from the request body
+    const quizData = req.body;
+
+    // Calculate the number of questions and estimated time
+    const totalQuestions = quizData.questions.length;
+    const estimatedTime = calculateQuizTime(quizData.questions);
+
+    // Create the info string
+    quizData.info = `${totalQuestions} questions • ${estimatedTime} min`;
+
+    // Create the new quiz with the calculated info
+    const newQuiz = await Quiz.create(quizData);
 
     res.status(201).json({
       success: true,

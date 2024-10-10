@@ -19,6 +19,9 @@ router.post(
     if (!lessonExists) {
       return next(new ErrorHandler("Lesson not found", 404));
     }
+    if (options.length !== 4) {
+      return next(new ErrorHandler("Must provider four option", 404));
+    }
 
     const quiz = await LessonQuiz.create({
       lesson,
@@ -99,6 +102,10 @@ router.delete(
     if (!quiz) {
       return next(new ErrorHandler("LessonQuiz not found", 404));
     }
+
+    await lessonModel.findByIdAndUpdate(quiz.lesson, {
+      $pull: { quiz: quiz._id },
+    });
 
     await quiz.remove();
 

@@ -16,7 +16,7 @@ router.get(
       query.language = language;
     }
 
-    if (difficulty) {
+    if (difficulty && difficulty !== "All") {
       query.difficulty = difficulty;
     }
 

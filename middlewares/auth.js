@@ -5,6 +5,7 @@ const User = require("../models/userModel");
 const isAuthenticated = async (req, res, next) => {
   try {
     const authToken = req.headers.authorization;
+    console.log({ req });
     if (!authToken) {
       return next(new ErrorHandler("No token provided", 400));
     }
