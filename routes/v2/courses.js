@@ -60,7 +60,6 @@ router.get(
     } = req.query;
 
     let query = Course.find({ status: "published" });
-    console.log(req.query, req.query.search ? true : false);
     if (search) {
       const searchRegex = new RegExp(search, "i");
       query = query.or([
@@ -107,7 +106,8 @@ router.get(
       query = query.sort("-publishedAt");
     }
 
-    if (rating) {
+    if (rating && rating!=="All") {
+      console.log({rating})
       const ratingNumber = parseInt(rating);
       if (!isNaN(ratingNumber) && ratingNumber >= 1 && ratingNumber <= 5) {
         query = query
